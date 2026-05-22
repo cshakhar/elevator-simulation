@@ -1,6 +1,54 @@
-# Elevator Simulation —  Diagram
+# Elevator Simulation — Diagrams
 
-The diagram below shows the full execution flow from CLI invocation through to statistics output.
+The diagrams below show the full execution flow from CLI invocation through to statistics output.
+
+## Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant main as main.py
+    participant sim as ElevatorSimulation
+    participant sched as Scheduler
+    participant elev as Elevator(s)
+    participant stats as stats.py
+
+    User->>main: python main.py [args]
+    main->>sim: ElevatorSimulation(elevators, floors, capacity, algorithm)
+    sim->>elev: Elevator(id, num_floors, capacity) × N
+    sim->>sched: create scheduler (nearest_car / round_robin / zone_based)
+    main->>sim: load_requests(filepath)
+    sim-->>main: List[Dict] requests
+
+    main->>sim: run(requests, verbose)
+    sim->>sim: _reset() — clear passengers, logs, rebuild scheduler
+
+    loop each tick (current_time ≤ max_sim_time)
+        sim->>sim: _log_positions()
+        alt requests arrive at current_time
+            sim->>sim: _dispatch(req)
+            sim->>sched: assign(passenger)
+            sched-->>sim: elevator_id
+            sim->>elev: add_pickup(source, passenger_id)
+        end
+        loop for each elevator
+            sim->>sim: _process_floor(elevator)
+            Note over sim,elev: Drop off riders → set dropoff_time
+            Note over sim,elev: Board waiting passengers up to capacity<br/>set pickup_time, call add_dropoff(dest)
+        end
+        sim->>sim: _is_done() → break if all served & all elevators idle
+        loop for each elevator
+            elev->>elev: move() — LOOK algorithm
+        end
+        sim->>sim: current_time += 1
+    end
+
+    main->>sim: save_position_log(output_path)
+    sim-->>main: writes output/elevator_positions.csv
+    main->>sim: print_statistics()
+    sim->>stats: compute_statistics(passengers)
+    stats-->>User: wait / travel / total time summary
+```
 
 ## Passenger State Machine
 
