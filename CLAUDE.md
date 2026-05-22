@@ -8,14 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run the simulation (default: 3 elevators, 60 floors, sample data)
 python main.py
 
-# Run with options
-python main.py --elevators 4 --floors 80 --algorithm zone_based --verbose
+# Run with full options
+python main.py --input data/large_requests.csv --elevators 4 --floors 80 \
+               --capacity 10 --algorithm zone_based --express --verbose
 
 # Run tests
 pytest tests/ -v
 
 # Run a single test
-pytest tests/test_simulation.py::TestElevatorModel::test_move_up -v
+pytest tests/test_simulation.py::TestElevator::test_move_up -v
 
 # Generate synthetic request data
 python generate_data.py --passengers 200 --floors 60 --max-time 300
@@ -39,10 +40,10 @@ This is a **tick-based discrete-time elevator simulation** implementing a Destin
 - **`elevator/models.py`** — `Direction` enum, `Passenger` (lifecycle: waiting → riding → served), `Elevator` (manages stops, movement, capacity)
 - **`elevator/simulation.py`** — `ElevatorSimulation` orchestrates the main loop: log positions → dispatch new requests → process pickups/dropoffs → move elevators
 - **`elevator/stats.py`** — aggregates and prints wait/travel/total time statistics
-- **`algorithms/base.py`** — abstract `BaseScheduler` with `assign(passenger) → int`
+- **`algorithms/base.py`** — abstract `BaseScheduler` with `assign(passenger) → int` and `_fallback` for all-full scenarios
 - **`algorithms/nearest_car.py`** — primary algorithm; scores elevators by ETA + pending-stop penalty
-- **`algorithms/round_robin.py`** — strict rotation baseline
-- **`algorithms/zone_based.py`** — divides building into N equal zones, falls back to NearestCar
+- **`algorithms/round_robin.py`** — strict rotation baseline; skips full elevators
+- **`algorithms/zone_based.py`** — divides building into N equal zones, falls back to NearestCar when zone elevator is unavailable
 
 ### Simulation loop (online, no peek-ahead)
 
@@ -53,8 +54,14 @@ Each tick: only requests with `time ≤ current_tick` are visible to the schedul
 Each elevator runs the LOOK variant of SCAN disk scheduling:
 - **Going UP**: serve all pending stops above current floor, then reverse
 - **Going DOWN**: serve all pending stops below current floor, then reverse
-- **Idle**: move toward nearest pending stop
-- At each floor: drop-offs are processed before pick-ups (maximizes capacity utilization); boarding is FIFO up to capacity
+- **Idle**: move toward nearest pending stop at a *different* floor; the current floor is only targeted if it is the sole remaining stop (prevents deadlock when capacity is exceeded mid-pickup)
+- At each floor: drop-offs are processed before pick-ups (frees capacity for boarding); boarding is FIFO up to capacity
+
+### Key behavioral invariants
+
+**Dropoff registered at boarding, not at dispatch.** `_dispatch` only calls `elevator.add_pickup(source)`; `elevator.add_dropoff(dest)` is called inside `_process_floor` the moment the passenger boards. This prevents a ghost dropoff stop at the elevator's current floor from trapping it idle when `dest == current_floor` at assignment time.
+
+**`max_sim_time` scales with passenger count and capacity.** The safety cap is `max_request_time + ⌈num_passengers / capacity⌉ × num_floors × 2`, ensuring enough ticks for all passengers to be served even when capacity is low and multiple trips are needed.
 
 ### Nearest Car scoring (default algorithm)
 
@@ -66,6 +73,10 @@ ETA estimation accounts for elevator direction relative to the source floor:
 - Moving away from source: must reach turnaround point first, then travel back
 
 Full elevators are skipped; if all are full, the passenger is queued on the least-loaded elevator.
+
+### Error handling
+
+`ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm name. `load_requests` raises `ValueError` for missing CSV columns or unparseable values (with file name and line number). Runtime `warnings.warn` is emitted for: invalid `express_config` elevator IDs, empty CSV files, duplicate passenger IDs, and any passengers left unserved when `max_sim_time` is reached.
 
 ### I/O formats
 
@@ -83,4 +94,4 @@ time,elevator_0,elevator_1,elevator_2
 1,2,1,1
 ```
 
-All elevators start at floor 1. Floors are integers only.
+All elevators start at floor 1. Floors are integers only. Out-of-range floors in requests are silently clamped to `[1, num_floors]`.
