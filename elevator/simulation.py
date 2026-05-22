@@ -1,5 +1,6 @@
 import csv
 import os
+import warnings
 from typing import Dict, List, Optional
 
 from elevator.models import Direction, Elevator, Passenger
@@ -15,6 +16,13 @@ class ElevatorSimulation:
         algorithm: str = "nearest_car",
         express_config: Optional[Dict[int, List[int]]] = None,
     ):
+        if num_elevators < 1:
+            raise ValueError(f"num_elevators must be >= 1, got {num_elevators}")
+        if num_floors < 2:
+            raise ValueError(f"num_floors must be >= 2, got {num_floors}")
+        if capacity < 1:
+            raise ValueError(f"capacity must be >= 1, got {capacity}")
+
         self.num_elevators = num_elevators
         self.num_floors = num_floors
         self.capacity = capacity
@@ -37,8 +45,14 @@ class ElevatorSimulation:
 
     def _apply_express_config(self, config: Dict[int, List[int]]) -> None:
         for elevator_id, floors in config.items():
-            if elevator_id < len(self.elevators):
-                self.elevators[elevator_id].express_floors = set(floors)
+            if elevator_id < 0 or elevator_id >= len(self.elevators):
+                warnings.warn(
+                    f"express_config references unknown elevator ID {elevator_id} "
+                    f"(only {self.num_elevators} elevator(s) exist); skipping.",
+                    stacklevel=3,
+                )
+                continue
+            self.elevators[elevator_id].express_floors = set(floors)
 
     def _create_scheduler(self, algorithm: str):
         from algorithms.nearest_car import NearestCarScheduler
@@ -65,17 +79,31 @@ class ElevatorSimulation:
 
     def load_requests(self, filepath: str) -> List[Dict]:
         requests = []
+        required_columns = {"time", "id", "source", "dest"}
         with open(filepath, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            for row in reader:
-                requests.append(
-                    {
-                        "time": int(row["time"]),
-                        "id": row["id"].strip(),
-                        "source": int(row["source"]),
-                        "dest": int(row["dest"]),
-                    }
-                )
+            if reader.fieldnames is not None:
+                missing_cols = required_columns - set(reader.fieldnames)
+                if missing_cols:
+                    raise ValueError(
+                        f"CSV {filepath!r} is missing required columns: {sorted(missing_cols)}"
+                    )
+            for line_num, row in enumerate(reader, start=2):
+                try:
+                    requests.append(
+                        {
+                            "time": int(row["time"]),
+                            "id": row["id"].strip(),
+                            "source": int(row["source"]),
+                            "dest": int(row["dest"]),
+                        }
+                    )
+                except (KeyError, ValueError) as exc:
+                    raise ValueError(
+                        f"CSV {filepath!r} line {line_num}: could not parse row {dict(row)} — {exc}"
+                    ) from exc
+        if not requests:
+            warnings.warn(f"No requests found in {filepath!r}; simulation will be empty.")
         return requests
 
     def save_position_log(self, filepath: str) -> None:
@@ -105,6 +133,16 @@ class ElevatorSimulation:
         max_trips = max(1, (len(requests) + self.capacity - 1) // self.capacity)
         max_sim_time = max_request_time + max_trips * self.num_floors * 2
 
+        seen_ids: Dict[str, int] = {}
+        for req in requests:
+            pid = req.get("id", "")
+            if pid in seen_ids:
+                warnings.warn(
+                    f"Duplicate passenger ID {pid!r} at time {req['time']} "
+                    f"(first seen at time {seen_ids[pid]}); later entry will overwrite the earlier one."
+                )
+            seen_ids[pid] = req["time"]
+
         while self.current_time <= max_sim_time:
             # 1. Log current elevator positions
             self._log_positions()
@@ -130,6 +168,13 @@ class ElevatorSimulation:
 
             if verbose:
                 self._print_tick()
+
+        unserved = [p.id for p in self.passengers.values() if not p.is_served]
+        if unserved:
+            warnings.warn(
+                f"Simulation ended with {len(unserved)} unserved passenger(s): {unserved}. "
+                "The safety time-cap was reached before all passengers could be served."
+            )
 
     def _reset(self) -> None:
         self.current_time = 0
@@ -162,6 +207,11 @@ class ElevatorSimulation:
             return
 
         elevator_id = self.scheduler.assign(passenger)
+        if elevator_id < 0 or elevator_id >= self.num_elevators:
+            raise RuntimeError(
+                f"Scheduler returned invalid elevator ID {elevator_id} "
+                f"for passenger {passenger.id!r} (simulation has {self.num_elevators} elevator(s))."
+            )
         passenger.assigned_elevator = elevator_id
         elevator = self.elevators[elevator_id]
         elevator.add_pickup(source, passenger.id)

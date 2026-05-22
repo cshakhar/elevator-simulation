@@ -1,3 +1,5 @@
+import csv as csv_mod
+
 import pytest
 from elevator.models import Direction, Elevator, Passenger
 from elevator.simulation import ElevatorSimulation
@@ -295,3 +297,217 @@ class TestSchedulers:
         scheduler = NearestCarScheduler([e0, e1])
         p = Passenger("p1", 0, 2, 8)
         assert scheduler.assign(p) == 1   # e0 is full, must pick e1
+
+    def test_round_robin_skips_full(self):
+        from algorithms.round_robin import RoundRobinScheduler
+        e0 = self._make_elevator(0, 1)
+        e1 = self._make_elevator(1, 1)
+        e0.passengers = [f"x{i}" for i in range(8)]
+        scheduler = RoundRobinScheduler([e0, e1])
+        assert scheduler.assign(Passenger("p1", 0, 1, 5)) == 1
+
+    def test_zone_based_fallback_when_zone_elevator_full(self):
+        from algorithms.zone_based import ZoneBasedScheduler
+        e0 = self._make_elevator(0, 1)
+        e1 = self._make_elevator(1, 6)
+        e0.passengers = [f"x{i}" for i in range(8)]
+        scheduler = ZoneBasedScheduler([e0, e1], num_floors=10)
+        # source=3 is in zone 0, but e0 is full → NearestCar fallback picks e1
+        p = Passenger("p1", 0, 3, 8)
+        assert scheduler.assign(p) == 1
+
+    def test_fallback_no_elevators_raises(self):
+        from algorithms.nearest_car import NearestCarScheduler
+        scheduler = NearestCarScheduler([])
+        with pytest.raises(RuntimeError, match="no elevators"):
+            scheduler._fallback(Passenger("p1", 0, 1, 5))
+
+
+# ---------------------------------------------------------------------------
+# Elevator model — additional coverage
+# ---------------------------------------------------------------------------
+
+class TestElevatorExtra:
+    def test_next_stop_going_down_below(self):
+        e = Elevator(0, 10, 8)
+        e.current_floor = 7
+        e.direction = Direction.DOWN
+        e.add_pickup(5, "p1")
+        e.add_pickup(3, "p2")
+        assert e.get_next_stop() == 5   # closest below
+
+    def test_next_stop_going_down_reversal(self):
+        e = Elevator(0, 10, 8)
+        e.current_floor = 3
+        e.direction = Direction.DOWN
+        e.add_pickup(7, "p1")           # only stop is above → reverse
+        assert e.get_next_stop() == 7
+
+    def test_next_stop_no_stops_returns_none(self):
+        e = Elevator(0, 10, 8)
+        assert e.get_next_stop() is None
+
+    def test_highest_and_lowest_stop(self):
+        e = Elevator(0, 10, 8)
+        e.add_pickup(3, "p1")
+        e.add_pickup(7, "p2")
+        assert e.lowest_stop == 3
+        assert e.highest_stop == 7
+
+    def test_highest_lowest_stop_when_empty(self):
+        e = Elevator(0, 10, 8)
+        assert e.highest_stop is None
+        assert e.lowest_stop is None
+
+    def test_available_capacity_partial(self):
+        e = Elevator(0, 10, 4)
+        e.passengers = ["p1", "p2"]
+        assert e.available_capacity == 2
+        assert not e.is_full
+
+    def test_remove_stop_kept_when_one_list_nonempty(self):
+        e = Elevator(0, 10, 8)
+        e.add_pickup(3, "p1")
+        e.add_dropoff(3, "p2")
+        e.stops[3]["pickup"].remove("p1")
+        e.remove_stop_if_empty(3)
+        assert 3 in e.stops   # dropoff still pending
+
+    def test_estimate_going_down_opposite(self):
+        e = Elevator(0, 10, 8)
+        e.current_floor = 5
+        e.direction = Direction.DOWN
+        e.add_dropoff(2, "px")   # lowest stop = 2
+        # source=8 > 5: must reach 2 first, then reverse up to 8 = 3 + 6 = 9
+        assert e.estimate_pickup_time(8) == 9
+
+    def test_reset_clears_all_state(self):
+        e = Elevator(0, 10, 8)
+        e.current_floor = 6
+        e.direction = Direction.UP
+        e.passengers = ["p1"]
+        e.add_pickup(9, "p2")
+        e.reset()
+        assert e.current_floor == 1
+        assert e.direction == Direction.IDLE
+        assert e.passengers == []
+        assert not e.stops
+
+    def test_has_stops_true_and_false(self):
+        e = Elevator(0, 10, 8)
+        assert not e.has_stops
+        e.add_pickup(5, "p1")
+        assert e.has_stops
+
+
+# ---------------------------------------------------------------------------
+# Simulation — additional coverage
+# ---------------------------------------------------------------------------
+
+class TestSimulationExtra:
+    def test_dropoff_before_pickup_same_floor(self):
+        """A rider drops off at a floor before a new passenger boards, freeing capacity."""
+        sim = ElevatorSimulation(num_elevators=1, num_floors=10, capacity=1)
+        # p1 fills the elevator from floor 1 to floor 5
+        # p2 waits at floor 5 and can only board after p1 exits
+        sim.run([_req(0, "p1", 1, 5), _req(0, "p2", 5, 9)])
+        assert sim.passengers["p1"].is_served
+        assert sim.passengers["p2"].is_served
+        assert sim.passengers["p2"].pickup_time >= sim.passengers["p1"].dropoff_time
+
+    def test_get_statistics_structure(self):
+        sim = ElevatorSimulation(num_elevators=1, num_floors=10, capacity=8)
+        sim.run([_req(0, "p1", 1, 5)])
+        stats = sim.get_statistics()
+        assert stats["total"] == 1
+        assert stats["served"] == 1
+        assert stats["unserved"] == 0
+        for key in ("wait_time", "travel_time", "total_time"):
+            assert key in stats
+            for field in ("min", "max", "avg", "count"):
+                assert field in stats[key]
+
+    def test_get_statistics_no_passengers(self):
+        sim = ElevatorSimulation(num_elevators=1, num_floors=10, capacity=8)
+        sim.run([])
+        stats = sim.get_statistics()
+        assert stats["total"] == 0
+        assert stats["served"] == 0
+        assert stats["wait_time"]["avg"] is None
+
+    def test_save_position_log(self, tmp_path):
+        sim = ElevatorSimulation(num_elevators=2, num_floors=10, capacity=8)
+        sim.run([_req(0, "p1", 1, 3)])
+        out = str(tmp_path / "positions.csv")
+        sim.save_position_log(out)
+        with open(out) as f:
+            rows = list(csv_mod.DictReader(f))
+        assert len(rows) > 0
+        assert "time" in rows[0]
+        assert "elevator_0" in rows[0]
+        assert "elevator_1" in rows[0]
+
+    def test_express_elevator_skipped_for_unserved_floor(self):
+        """Passenger whose floor the express elevator skips gets the open elevator."""
+        # Elevator 0 only serves floors 1 and 10; elevator 1 is open
+        sim = ElevatorSimulation(
+            num_elevators=2, num_floors=10, capacity=8,
+            express_config={0: [1, 10]},
+        )
+        sim.run([_req(0, "p1", 5, 8)])
+        assert sim.passengers["p1"].is_served
+        assert sim.passengers["p1"].assigned_elevator == 1
+
+    def test_duplicate_passenger_id_warns(self):
+        sim = ElevatorSimulation(num_elevators=1, num_floors=10, capacity=8)
+        reqs = [_req(0, "p1", 1, 5), _req(2, "p1", 3, 7)]
+        with pytest.warns(UserWarning, match="Duplicate passenger ID"):
+            sim.run(reqs)
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+class TestErrorHandling:
+    def test_invalid_num_elevators(self):
+        with pytest.raises(ValueError, match="num_elevators"):
+            ElevatorSimulation(num_elevators=0)
+
+    def test_invalid_num_floors(self):
+        with pytest.raises(ValueError, match="num_floors"):
+            ElevatorSimulation(num_floors=1)
+
+    def test_invalid_capacity(self):
+        with pytest.raises(ValueError, match="capacity"):
+            ElevatorSimulation(capacity=0)
+
+    def test_unknown_algorithm(self):
+        with pytest.raises(ValueError, match="Unknown algorithm"):
+            ElevatorSimulation(algorithm="banana")
+
+    def test_express_config_invalid_elevator_id_warns(self):
+        with pytest.warns(UserWarning, match="unknown elevator ID"):
+            ElevatorSimulation(num_elevators=2, express_config={99: [1, 10]})
+
+    def test_load_requests_missing_columns(self, tmp_path):
+        f = tmp_path / "bad.csv"
+        f.write_text("time,id\n0,p1\n")
+        sim = ElevatorSimulation()
+        with pytest.raises(ValueError, match="missing required columns"):
+            sim.load_requests(str(f))
+
+    def test_load_requests_malformed_row(self, tmp_path):
+        f = tmp_path / "bad.csv"
+        f.write_text("time,id,source,dest\n0,p1,abc,10\n")
+        sim = ElevatorSimulation()
+        with pytest.raises(ValueError, match="line 2"):
+            sim.load_requests(str(f))
+
+    def test_load_requests_empty_csv_warns(self, tmp_path):
+        f = tmp_path / "empty.csv"
+        f.write_text("time,id,source,dest\n")
+        sim = ElevatorSimulation()
+        with pytest.warns(UserWarning, match="No requests found"):
+            result = sim.load_requests(str(f))
+        assert result == []
