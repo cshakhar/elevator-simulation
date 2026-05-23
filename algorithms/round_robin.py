@@ -14,6 +14,8 @@ class RoundRobinScheduler(BaseScheduler):
 
     def assign(self, passenger: Passenger) -> int:
         n = len(self.elevators)
+        if n == 0:
+            return self._fallback(passenger)
         for _ in range(n):
             elevator = self.elevators[self._counter % n]
             self._counter += 1

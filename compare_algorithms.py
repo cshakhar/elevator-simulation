@@ -9,8 +9,12 @@ Usage
   python compare_algorithms.py --input data/large_requests.csv --elevators 4
 """
 import argparse
+import logging
+import sys
 
 from elevator.simulation import ElevatorSimulation
+
+logger = logging.getLogger(__name__)
 
 ALGORITHMS = ["nearest_car", "round_robin", "zone_based"]
 
@@ -29,11 +33,23 @@ def run_all(
             capacity=capacity,
             algorithm=algo,
         )
-        requests = sim.load_requests(input_file)
-        sim.run(requests)
+        try:
+            requests = sim.load_requests(input_file)
+            sim.run(requests)
+        except FileNotFoundError:
+            logger.error("[%s] FAILED: input file not found: %r", algo, input_file)
+            results[algo] = None
+            continue
+        except Exception as e:
+            logger.error("[%s] FAILED: %s", algo, e)
+            results[algo] = None
+            continue
         stats = sim.get_statistics()
         results[algo] = stats
-        sim.save_position_log(f"output/positions_{algo}.csv")
+        try:
+            sim.save_position_log(f"output/positions_{algo}.csv")
+        except OSError as e:
+            logger.warning("[%s] could not save position log: %s", algo, e)
         print(f"  [{algo}] done in {sim.current_time} steps — "
               f"avg total time: {stats['total_time']['avg']:.1f}")
     return results
@@ -58,15 +74,19 @@ def print_table(results: dict) -> None:
     print(header)
     print(sep)
     for label, fn in metrics:
-        row = f"{label:<32}" + "".join(f"{str(fn(results[a])):>{col}}" for a in ALGORITHMS)
+        row = f"{'Metric' if False else label:<32}"
+        for a in ALGORITHMS:
+            val = "FAILED" if results[a] is None else str(fn(results[a]))
+            row += f"{val:>{col}}"
         print(row)
     print(sep)
 
-    best = min(
-        ALGORITHMS,
-        key=lambda a: results[a]["total_time"]["avg"] or float("inf"),
-    )
-    print(f"\n  Best avg total time: {best}")
+    available = {a: r for a, r in results.items() if r is not None}
+    if available:
+        best = min(available, key=lambda a: available[a]["total_time"]["avg"] or float("inf"))
+        print(f"\n  Best avg total time: {best}")
+    else:
+        print("\n  No algorithms completed successfully.")
     print("=" * (32 + col * len(ALGORITHMS)))
 
 
@@ -76,7 +96,14 @@ def main() -> None:
     p.add_argument("--elevators", type=int, default=3)
     p.add_argument("--floors", type=int, default=60)
     p.add_argument("--capacity", type=int, default=8)
+    p.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="WARNING",
+        help="Logging verbosity (default: WARNING)",
+    )
     args = p.parse_args()
+    logging.basicConfig(level=args.log_level, format="%(levelname)s %(name)s: %(message)s")
 
     print(f"Input: {args.input}  |  Elevators: {args.elevators}  "
           f"|  Floors: {args.floors}  |  Capacity: {args.capacity}\n")

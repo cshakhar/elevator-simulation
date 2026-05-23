@@ -97,9 +97,17 @@ express_config = {
 2. Register it in `ElevatorSimulation._create_scheduler` in `elevator/simulation.py`
 3. Add it to the `choices` list in `main.py`'s `--algorithm` argument
 
+### Logging
+
+All runtime diagnostics go through `logging.getLogger("elevator.simulation")`. Both `main.py` and `compare_algorithms.py` accept `--log-level DEBUG|INFO|WARNING|ERROR` (default `WARNING`) and call `logging.basicConfig` at startup.
+
+Log levels in use:
+- `WARNING` — duplicate passenger IDs, empty CSV, invalid `express_config` IDs, unserved passengers at time-cap
+- `DEBUG` — per-tick elevator state, and one line each when a passenger is assigned, boards, or alights
+
 ### Error handling
 
-`ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm name. `load_requests` raises `ValueError` for missing CSV columns or unparseable values (with file name and line number). Runtime `warnings.warn` is emitted for: invalid `express_config` elevator IDs, empty CSV files, duplicate passenger IDs, and any passengers left unserved when `max_sim_time` is reached.
+`ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm name. `load_requests` raises `ValueError` for missing columns, unparseable values (with filename and line number), or a non-UTF-8 file. `save_position_log` raises `OSError` if the output path is not writable. `generate_data.py` raises `ValueError` for `num_floors < 2`, `num_passengers < 1`, or `max_time < 0`.
 
 ### Programmatic statistics API
 
@@ -111,6 +119,8 @@ express_config = {
   "wait_time":   {"min": int|None, "max": int|None, "avg": float|None, "count": int},
   "travel_time": {"min": int|None, "max": int|None, "avg": float|None, "count": int},
   "total_time":  {"min": int|None, "max": int|None, "avg": float|None, "count": int},
+  "zero_wait_count": int,   # passengers picked up immediately
+  "long_wait_count": int,   # passengers who waited > 20 ticks
 }
 ```
 

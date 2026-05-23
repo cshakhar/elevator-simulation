@@ -22,17 +22,30 @@ except ImportError:
 
 def load_log(path: str):
     times, elevators = [], {}
-    with open(path, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            times.append(int(row["time"]))
-            for k, v in row.items():
-                if k.startswith("elevator_"):
-                    elevators.setdefault(k, []).append(int(v))
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            for line_num, row in enumerate(csv.DictReader(f), start=2):
+                try:
+                    times.append(int(row["time"]))
+                except KeyError:
+                    raise ValueError(f"{path!r} is missing a 'time' column.")
+                except ValueError:
+                    raise ValueError(f"{path!r} line {line_num}: non-integer value in 'time' column.")
+                for k, v in row.items():
+                    if k.startswith("elevator_"):
+                        try:
+                            elevators.setdefault(k, []).append(int(v))
+                        except ValueError:
+                            raise ValueError(f"{path!r} line {line_num}: non-integer value in column {k!r}.")
+    except UnicodeDecodeError:
+        raise ValueError(f"{path!r} is not a valid UTF-8 file.")
     return times, elevators
 
 
 def plot(path: str, save_to: str = None) -> None:
     times, elevators = load_log(path)
+    if not times:
+        raise ValueError(f"{path!r} contains no data rows.")
     colors = plt.cm.tab10.colors
 
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -63,4 +76,11 @@ if __name__ == "__main__":
     p.add_argument("--input", default="output/elevator_positions.csv")
     p.add_argument("--save", default=None, help="Save to file instead of showing")
     args = p.parse_args()
-    plot(args.input, args.save)
+    try:
+        plot(args.input, args.save)
+    except FileNotFoundError:
+        print(f"ERROR: input file not found: {args.input!r}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)

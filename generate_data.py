@@ -4,6 +4,7 @@ import csv
 import random
 import argparse
 import os
+import sys
 
 
 def generate(
@@ -13,6 +14,13 @@ def generate(
     seed: int = 42,
     output: str = "data/generated_requests.csv",
 ) -> None:
+    if num_floors < 2:
+        raise ValueError(f"num_floors must be >= 2, got {num_floors}")
+    if num_passengers < 1:
+        raise ValueError(f"num_passengers must be >= 1, got {num_passengers}")
+    if max_time < 0:
+        raise ValueError(f"max_time must be >= 0, got {max_time}")
+
     random.seed(seed)
     rows = []
     for i in range(num_passengers):
@@ -40,4 +48,8 @@ if __name__ == "__main__":
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output", default="data/generated_requests.csv")
     args = p.parse_args()
-    generate(args.passengers, args.floors, args.max_time, args.seed, args.output)
+    try:
+        generate(args.passengers, args.floors, args.max_time, args.seed, args.output)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)

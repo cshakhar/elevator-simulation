@@ -15,6 +15,8 @@ import sys
 
 from elevator.simulation import ElevatorSimulation
 
+logger = logging.getLogger(__name__)
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -78,19 +80,26 @@ def main() -> None:
         express_config = {last_id: list(express_floors)}
         print(f"  Express mode enabled: elevator {last_id} skips floors 2–10")
 
-    sim = ElevatorSimulation(
-        num_elevators=args.elevators,
-        num_floors=args.floors,
-        capacity=args.capacity,
-        algorithm=args.algorithm,
-        express_config=express_config,
-    )
+    try:
+        sim = ElevatorSimulation(
+            num_elevators=args.elevators,
+            num_floors=args.floors,
+            capacity=args.capacity,
+            algorithm=args.algorithm,
+            express_config=express_config,
+        )
+    except ValueError as e:
+        logger.error("invalid configuration: %s", e)
+        sys.exit(1)
 
     print(f"Loading requests from: {args.input}")
     try:
         requests = sim.load_requests(args.input)
     except FileNotFoundError:
-        print(f"ERROR: input file not found: {args.input}", file=sys.stderr)
+        logger.error("input file not found: %s", args.input)
+        sys.exit(1)
+    except ValueError as e:
+        logger.error("%s", e)
         sys.exit(1)
 
     print(f"  {len(requests)} requests loaded")
@@ -102,8 +111,11 @@ def main() -> None:
     sim.run(requests)
 
     print(f"Simulation complete at T = {sim.current_time}")
-    sim.save_position_log(args.output)
-    print(f"Position log saved to: {args.output}")
+    try:
+        sim.save_position_log(args.output)
+        print(f"Position log saved to: {args.output}")
+    except OSError as e:
+        logger.error("%s", e)
     sim.print_statistics()
 
 

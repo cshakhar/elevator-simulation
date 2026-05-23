@@ -107,9 +107,10 @@ When `--express` is set, the last elevator is restricted to floors 1 and 11+ (it
 
 ```bash
 python compare_algorithms.py --input data/large_requests.csv
+python compare_algorithms.py --input data/large_requests.csv --log-level DEBUG
 ```
 
-Runs all three algorithms on the same input and prints a side-by-side performance table. Example output:
+Runs all three algorithms on the same input and prints a side-by-side performance table. Accepts the same `--log-level` flag as `main.py`; each algorithm run is isolated so a failure in one does not abort the others. Example output:
 
 ```
 Input: data/large_requests.csv  |  Elevators: 3  |  Floors: 60  |  Capacity: 8
@@ -210,6 +211,9 @@ time,elevator_0,elevator_1,elevator_2
     Min     : 9
     Max     : 63
     Average : 33.90
+
+  Passengers with zero wait   : 3
+  Passengers with wait > 20   : 1
 ====================================================
 ```
 

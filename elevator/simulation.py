@@ -82,28 +82,31 @@ class ElevatorSimulation:
     def load_requests(self, filepath: str) -> List[Dict]:
         requests = []
         required_columns = {"time", "id", "source", "dest"}
-        with open(filepath, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            if reader.fieldnames is not None:
-                missing_cols = required_columns - set(reader.fieldnames)
-                if missing_cols:
-                    raise ValueError(
-                        f"CSV {filepath!r} is missing required columns: {sorted(missing_cols)}"
-                    )
-            for line_num, row in enumerate(reader, start=2):
-                try:
-                    requests.append(
-                        {
-                            "time": int(row["time"]),
-                            "id": row["id"].strip(),
-                            "source": int(row["source"]),
-                            "dest": int(row["dest"]),
-                        }
-                    )
-                except (KeyError, ValueError) as exc:
-                    raise ValueError(
-                        f"CSV {filepath!r} line {line_num}: could not parse row {dict(row)} — {exc}"
-                    ) from exc
+        try:
+            with open(filepath, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                if reader.fieldnames is not None:
+                    missing_cols = required_columns - set(reader.fieldnames)
+                    if missing_cols:
+                        raise ValueError(
+                            f"CSV {filepath!r} is missing required columns: {sorted(missing_cols)}"
+                        )
+                for line_num, row in enumerate(reader, start=2):
+                    try:
+                        requests.append(
+                            {
+                                "time": int(row["time"]),
+                                "id": row["id"].strip(),
+                                "source": int(row["source"]),
+                                "dest": int(row["dest"]),
+                            }
+                        )
+                    except (KeyError, ValueError) as exc:
+                        raise ValueError(
+                            f"CSV {filepath!r} line {line_num}: could not parse row {dict(row)} — {exc}"
+                        ) from exc
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"CSV {filepath!r} is not valid UTF-8: {exc}") from exc
         if not requests:
             logger.warning("No requests found in %r; simulation will be empty.", filepath)
         return requests
@@ -111,12 +114,15 @@ class ElevatorSimulation:
     def save_position_log(self, filepath: str) -> None:
         if not self.position_log:
             return
-        os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
-        fieldnames = ["time"] + [f"elevator_{i}" for i in range(self.num_elevators)]
-        with open(filepath, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(self.position_log)
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+            fieldnames = ["time"] + [f"elevator_{i}" for i in range(self.num_elevators)]
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(self.position_log)
+        except OSError as exc:
+            raise OSError(f"Could not write position log to {filepath!r}: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Main simulation loop
