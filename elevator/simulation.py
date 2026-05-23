@@ -1,10 +1,12 @@
 import csv
+import logging
 import os
-import warnings
 from typing import Dict, List, Optional
 
 from elevator.models import Direction, Elevator, Passenger
-from elevator.stats import compute_statistics
+from elevator.stats import compute_statistics, print_statistics
+
+logger = logging.getLogger(__name__)
 
 
 class ElevatorSimulation:
@@ -46,10 +48,10 @@ class ElevatorSimulation:
     def _apply_express_config(self, config: Dict[int, List[int]]) -> None:
         for elevator_id, floors in config.items():
             if elevator_id < 0 or elevator_id >= len(self.elevators):
-                warnings.warn(
-                    f"express_config references unknown elevator ID {elevator_id} "
-                    f"(only {self.num_elevators} elevator(s) exist); skipping.",
-                    stacklevel=3,
+                logger.warning(
+                    "express_config references unknown elevator ID %d "
+                    "(only %d elevator(s) exist); skipping.",
+                    elevator_id, self.num_elevators,
                 )
                 continue
             self.elevators[elevator_id].express_floors = set(floors)
@@ -103,7 +105,7 @@ class ElevatorSimulation:
                         f"CSV {filepath!r} line {line_num}: could not parse row {dict(row)} — {exc}"
                     ) from exc
         if not requests:
-            warnings.warn(f"No requests found in {filepath!r}; simulation will be empty.")
+            logger.warning("No requests found in %r; simulation will be empty.", filepath)
         return requests
 
     def save_position_log(self, filepath: str) -> None:
@@ -120,7 +122,7 @@ class ElevatorSimulation:
     # Main simulation loop
     # ------------------------------------------------------------------
 
-    def run(self, requests: List[Dict], verbose: bool = False) -> None:
+    def run(self, requests: List[Dict]) -> None:
         self._reset()
 
         requests_by_time: Dict[int, List[Dict]] = {}
@@ -137,9 +139,10 @@ class ElevatorSimulation:
         for req in requests:
             pid = req.get("id", "")
             if pid in seen_ids:
-                warnings.warn(
-                    f"Duplicate passenger ID {pid!r} at time {req['time']} "
-                    f"(first seen at time {seen_ids[pid]}); later entry will overwrite the earlier one."
+                logger.warning(
+                    "Duplicate passenger ID %r at time %d (first seen at time %d); "
+                    "later entry will overwrite the earlier one.",
+                    pid, req["time"], seen_ids[pid],
                 )
             seen_ids[pid] = req["time"]
 
@@ -165,15 +168,14 @@ class ElevatorSimulation:
                 elevator.move()
 
             self.current_time += 1
-
-            if verbose:
-                self._print_tick()
+            self._tick_log()
 
         unserved = [p.id for p in self.passengers.values() if not p.is_served]
         if unserved:
-            warnings.warn(
-                f"Simulation ended with {len(unserved)} unserved passenger(s): {unserved}. "
-                "The safety time-cap was reached before all passengers could be served."
+            logger.warning(
+                "Simulation ended with %d unserved passenger(s): %s. "
+                "The safety time-cap was reached before all passengers could be served.",
+                len(unserved), unserved,
             )
 
     def _reset(self) -> None:
@@ -204,6 +206,7 @@ class ElevatorSimulation:
         if source == dest:
             passenger.pickup_time = req["time"]
             passenger.dropoff_time = req["time"]
+            logger.debug("T=%d: %r served instantly (src==dest=%d)", self.current_time, passenger.id, source)
             return
 
         elevator_id = self.scheduler.assign(passenger)
@@ -215,6 +218,7 @@ class ElevatorSimulation:
         passenger.assigned_elevator = elevator_id
         elevator = self.elevators[elevator_id]
         elevator.add_pickup(source, passenger.id)
+        logger.debug("T=%d: %r assigned to E%d (src=%d dst=%d)", self.current_time, passenger.id, elevator_id, source, dest)
 
     def _process_floor(self, elevator: Elevator) -> None:
         floor = elevator.current_floor
@@ -229,6 +233,11 @@ class ElevatorSimulation:
                 elevator.passengers.remove(pid)
                 self.passengers[pid].dropoff_time = self.current_time
                 stop["dropoff"].remove(pid)
+                p = self.passengers[pid]
+                logger.debug(
+                    "T=%d: %r alighted E%d at floor %d (wait=%d travel=%d)",
+                    self.current_time, pid, elevator.id, floor, p.wait_time, p.travel_time,
+                )
 
         # Pick up waiting passengers (FIFO, respect capacity)
         for pid in list(stop["pickup"]):
@@ -238,6 +247,10 @@ class ElevatorSimulation:
             self.passengers[pid].pickup_time = self.current_time
             stop["pickup"].remove(pid)
             elevator.add_dropoff(self.passengers[pid].dest, pid)
+            logger.debug(
+                "T=%d: %r boarded E%d at floor %d (dst=%d)",
+                self.current_time, pid, elevator.id, floor, self.passengers[pid].dest,
+            )
 
         elevator.remove_stop_if_empty(floor)
 
@@ -256,23 +269,21 @@ class ElevatorSimulation:
             entry[f"elevator_{e.id}"] = e.current_floor
         self.position_log.append(entry)
 
-    def _print_tick(self) -> None:
+    def _tick_log(self) -> None:
+        if not logger.isEnabledFor(logging.DEBUG):
+            return
         parts = [f"[T={self.current_time:>4}]"]
         for e in self.elevators:
-            parts.append(
-                f"E{e.id}@{e.current_floor:>3}"
-                f"({e.direction.value[0]},{len(e.passengers)}p)"
-            )
-        print("  ".join(parts))
+            parts.append(f"E{e.id}@{e.current_floor:>3}({e.direction.value[0]},{len(e.passengers)}p)")
+        logger.debug("  ".join(parts))
 
     # ------------------------------------------------------------------
     # Public reporting
     # ------------------------------------------------------------------
 
     def print_statistics(self) -> None:
-        compute_statistics(list(self.passengers.values()))
+        stats = compute_statistics(list(self.passengers.values()))
+        print_statistics(stats)
 
     def get_statistics(self) -> Dict:
-        return compute_statistics(
-            list(self.passengers.values()), print_output=False
-        )
+        return compute_statistics(list(self.passengers.values()))

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List
 from elevator.models import Passenger
 
 
@@ -13,32 +13,26 @@ def _summarize(values: List[int]) -> Dict:
     }
 
 
-def compute_statistics(
-    passengers: List[Passenger], print_output: bool = True
-) -> Dict:
+def compute_statistics(passengers: List[Passenger]) -> Dict:
     served = [p for p in passengers if p.is_served]
-    unserved = [p for p in passengers if not p.is_served]
 
     wait_times = [p.wait_time for p in served if p.wait_time is not None]
     travel_times = [p.travel_time for p in served if p.travel_time is not None]
     total_times = [p.total_time for p in served if p.total_time is not None]
 
-    stats = {
+    return {
         "total": len(passengers),
         "served": len(served),
-        "unserved": len(unserved),
+        "unserved": len(passengers) - len(served),
         "wait_time": _summarize(wait_times),
         "travel_time": _summarize(travel_times),
         "total_time": _summarize(total_times),
+        "zero_wait_count": sum(1 for p in served if p.wait_time == 0),
+        "long_wait_count": sum(1 for p in served if (p.wait_time or 0) > 20),
     }
 
-    if print_output:
-        _print(stats, served)
 
-    return stats
-
-
-def _print(stats: Dict, served: List[Passenger]) -> None:
+def print_statistics(stats: Dict) -> None:
     print("\n" + "=" * 52)
     print("  PASSENGER STATISTICS")
     print("=" * 52)
@@ -61,11 +55,9 @@ def _print(stats: Dict, served: List[Passenger]) -> None:
         else:
             print("    No data")
 
-    if served:
-        zero_wait = sum(1 for p in served if p.wait_time == 0)
-        long_wait = sum(1 for p in served if (p.wait_time or 0) > 20)
-        print(f"\n  Passengers with zero wait   : {zero_wait}")
-        if long_wait:
-            print(f"  Passengers with wait > 20   : {long_wait}")
+    if stats["served"]:
+        print(f"\n  Passengers with zero wait   : {stats['zero_wait_count']}")
+        if stats["long_wait_count"]:
+            print(f"  Passengers with wait > 20   : {stats['long_wait_count']}")
 
     print("=" * 52)

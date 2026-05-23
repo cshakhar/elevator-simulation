@@ -1,4 +1,5 @@
 import csv as csv_mod
+import logging
 
 import pytest
 from elevator.models import Direction, Elevator, Passenger
@@ -458,11 +459,12 @@ class TestSimulationExtra:
         assert sim.passengers["p1"].is_served
         assert sim.passengers["p1"].assigned_elevator == 1
 
-    def test_duplicate_passenger_id_warns(self):
+    def test_duplicate_passenger_id_warns(self, caplog):
         sim = ElevatorSimulation(num_elevators=1, num_floors=10, capacity=8)
         reqs = [_req(0, "p1", 1, 5), _req(2, "p1", 3, 7)]
-        with pytest.warns(UserWarning, match="Duplicate passenger ID"):
+        with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
             sim.run(reqs)
+        assert "Duplicate passenger ID" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -486,9 +488,10 @@ class TestErrorHandling:
         with pytest.raises(ValueError, match="Unknown algorithm"):
             ElevatorSimulation(algorithm="banana")
 
-    def test_express_config_invalid_elevator_id_warns(self):
-        with pytest.warns(UserWarning, match="unknown elevator ID"):
+    def test_express_config_invalid_elevator_id_warns(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
             ElevatorSimulation(num_elevators=2, express_config={99: [1, 10]})
+        assert "unknown elevator ID" in caplog.text
 
     def test_load_requests_missing_columns(self, tmp_path):
         f = tmp_path / "bad.csv"
@@ -504,10 +507,11 @@ class TestErrorHandling:
         with pytest.raises(ValueError, match="line 2"):
             sim.load_requests(str(f))
 
-    def test_load_requests_empty_csv_warns(self, tmp_path):
+    def test_load_requests_empty_csv_warns(self, tmp_path, caplog):
         f = tmp_path / "empty.csv"
         f.write_text("time,id,source,dest\n")
         sim = ElevatorSimulation()
-        with pytest.warns(UserWarning, match="No requests found"):
+        with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
             result = sim.load_requests(str(f))
+        assert "No requests found" in caplog.text
         assert result == []

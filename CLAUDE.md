@@ -10,7 +10,7 @@ python main.py
 
 # Run with full options
 python main.py --input data/large_requests.csv --elevators 4 --floors 80 \
-               --capacity 10 --algorithm zone_based --express --verbose
+               --capacity 10 --algorithm zone_based --express --log-level DEBUG
 
 # Run tests
 pytest tests/ -v
@@ -74,9 +74,47 @@ ETA estimation accounts for elevator direction relative to the source floor:
 
 Full elevators are skipped; if all are full, the passenger is queued on the least-loaded elevator.
 
+### Zone-based algorithm
+
+Zone size is `ceil(num_floors / num_elevators)`. Zone ownership is by index: elevator 0 owns floors 1–zone_size, elevator 1 owns the next zone, etc. If the zone elevator is full or cannot serve either floor, falls back to NearestCar.
+
+### Express elevator configuration
+
+The `--express` CLI flag hardcodes: last elevator serves only floor 1 and floors 11+. For programmatic control, pass `express_config` to `ElevatorSimulation`:
+
+```python
+express_config = {
+    0: [1, 10, 20, 30],   # elevator 0 serves only these floors
+    2: list(range(1, 61)), # elevator 2 serves all floors (same as None)
+}
+```
+
+`elevator.serves_floor(f)` returns `True` if `express_floors is None` (open elevator) or `f in express_floors`. Schedulers check this before assigning.
+
+### Adding a new scheduling algorithm
+
+1. Create `algorithms/my_algo.py` with a class extending `BaseScheduler`; implement `assign(passenger) → int`
+2. Register it in `ElevatorSimulation._create_scheduler` in `elevator/simulation.py`
+3. Add it to the `choices` list in `main.py`'s `--algorithm` argument
+
 ### Error handling
 
 `ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm name. `load_requests` raises `ValueError` for missing CSV columns or unparseable values (with file name and line number). Runtime `warnings.warn` is emitted for: invalid `express_config` elevator IDs, empty CSV files, duplicate passenger IDs, and any passengers left unserved when `max_sim_time` is reached.
+
+### Programmatic statistics API
+
+`sim.get_statistics()` returns a dict (does not print):
+
+```python
+{
+  "total": int, "served": int, "unserved": int,
+  "wait_time":   {"min": int|None, "max": int|None, "avg": float|None, "count": int},
+  "travel_time": {"min": int|None, "max": int|None, "avg": float|None, "count": int},
+  "total_time":  {"min": int|None, "max": int|None, "avg": float|None, "count": int},
+}
+```
+
+`sim.print_statistics()` prints the same data formatted to stdout.
 
 ### I/O formats
 
