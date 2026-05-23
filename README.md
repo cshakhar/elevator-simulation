@@ -8,8 +8,8 @@ immediately assigns them to a specific elevator and routes it optimally.
 
 ## Table of Contents
 
-- [Key Concepts](#key-concepts)
 - [Problem Statement](#problem-statement)
+- [Key Concepts](#key-concepts)
 - [Solution Overview](#solution-overview)
 - [How to Run](#how-to-run)
   - [Prerequisites](#prerequisites)
@@ -33,17 +33,6 @@ immediately assigns them to a specific elevator and routes it optimally.
 
 ---
 
-## Key Concepts
-
-| Term | Definition |
-|------|------------|
-| **Tick** | The base unit of simulation time. One tick = one floor of travel. Door open/close takes zero extra ticks. |
-| **Destination Dispatch** | Passengers declare both source and destination when requesting. The controller assigns them to a specific elevator immediately, enabling smarter routing than traditional "press a button" systems. |
-| **Online scheduling** | The scheduler sees only requests that have already arrived (time ≤ current tick). It cannot peek at future requests, mirroring real building controllers. |
-| **LOOK algorithm** | A sweep-based movement strategy: an elevator travels in one direction serving all pending stops, then reverses — never overshooting unnecessarily. |
-
----
-
 ## Problem Statement
 
 In a multi-floor building, passengers arrive continuously at unpredictable times, from unpredictable floors, going to unpredictable destinations. A naive system — one elevator, first-come first-served — causes long wait times, unnecessary floor traversals, and poor throughput as building size or passenger volume grows.
@@ -57,6 +46,17 @@ Three interconnected sub-problems must be solved together:
 3. **Capacity** — what happens when an elevator is full and more passengers are waiting? (no plan = stranded passengers)
 
 The simulation is also **online**: the scheduler has no visibility into future requests. It must make dispatch decisions using only requests that have already arrived, mirroring the constraints of a real building controller.
+
+---
+
+## Key Concepts
+
+| Term | Definition |
+|------|------------|
+| **Tick** | The base unit of simulation time. One tick = one floor of travel. Door open/close takes zero extra ticks. |
+| **Destination Dispatch** | Passengers declare both source and destination when requesting. The controller assigns them to a specific elevator immediately, enabling smarter routing than traditional "press a button" systems. |
+| **Online scheduling** | The scheduler sees only requests that have already arrived (time ≤ current tick). It cannot peek at future requests, mirroring real building controllers. |
+| **LOOK algorithm** | A sweep-based movement strategy: an elevator travels in one direction serving all pending stops, then reverses — never overshooting unnecessarily. |
 
 ---
 
