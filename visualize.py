@@ -66,7 +66,7 @@ def plot(path: str, save_to: str = None) -> None:
 
     if save_to:
         fig.savefig(save_to, dpi=150, bbox_inches="tight")
-        print(f"Chart saved → {save_to}")
+        print(f"Chart saved -> {save_to}")
     else:
         plt.show()
 

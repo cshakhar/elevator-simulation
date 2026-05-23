@@ -6,6 +6,33 @@ immediately assigns them to a specific elevator and routes it optimally.
 
 ---
 
+## Table of Contents
+
+- [Key Concepts](#key-concepts)
+- [Problem Statement](#problem-statement)
+- [Solution Overview](#solution-overview)
+- [How to Run](#how-to-run)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start-sample-data-3-elevators-60-floors)
+  - [Custom Configuration](#custom-configuration)
+  - [Compare All Three Algorithms](#compare-all-three-algorithms)
+  - [Generate Synthetic Data](#generate-synthetic-data)
+  - [Run Tests](#run-tests)
+  - [Visualise Elevator Paths](#visualise-elevator-paths-requires-matplotlib)
+- [Input Format](#input-format)
+- [Output](#output)
+- [Architecture](#architecture)
+- [Scheduling Algorithms](#scheduling-algorithms)
+  - [Nearest Car](#nearest-car-default-recommended)
+  - [Round Robin](#round-robin)
+  - [Zone-Based](#zone-based)
+  - [When to Use Each Algorithm](#when-to-use-each-algorithm)
+- [Elevator Movement: SCAN / LOOK](#elevator-movement-scan--look)
+- [Assumptions & Trade-offs](#assumptions--trade-offs)
+- [What I'd Improve with More Time](#what-id-improve-with-more-time)
+
+---
+
 ## Key Concepts
 
 | Term | Definition |
