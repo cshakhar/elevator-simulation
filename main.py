@@ -10,6 +10,7 @@ Examples
   python main.py --input data/large_requests.csv --express --verbose
 """
 import argparse
+import logging
 import sys
 
 from elevator.simulation import ElevatorSimulation
@@ -55,14 +56,20 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     p.add_argument(
-        "--verbose", action="store_true",
-        help="Print elevator state at every time step",
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="WARNING",
+        help="Logging verbosity; DEBUG prints per-tick state (default: WARNING)",
     )
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    logging.basicConfig(
+        level=args.log_level,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     express_config = None
     if args.express and args.elevators >= 2:
@@ -92,7 +99,7 @@ def main() -> None:
     print()
     print("Running simulation…")
 
-    sim.run(requests, verbose=args.verbose)
+    sim.run(requests)
 
     print(f"Simulation complete at T = {sim.current_time}")
     sim.save_position_log(args.output)

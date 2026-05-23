@@ -6,7 +6,48 @@ immediately assigns them to a specific elevator and routes it optimally.
 
 ---
 
-## How to run
+## Key Concepts
+
+| Term | Definition |
+|------|------------|
+| **Tick** | The base unit of simulation time. One tick = one floor of travel. Door open/close takes zero extra ticks. |
+| **Destination Dispatch** | Passengers declare both source and destination when requesting. The controller assigns them to a specific elevator immediately, enabling smarter routing than traditional "press a button" systems. |
+| **Online scheduling** | The scheduler sees only requests that have already arrived (time ≤ current tick). It cannot peek at future requests, mirroring real building controllers. |
+| **LOOK algorithm** | A sweep-based movement strategy: an elevator travels in one direction serving all pending stops, then reverses — never overshooting unnecessarily. |
+
+---
+
+## Problem Statement
+
+In a multi-floor building, passengers arrive continuously at unpredictable times, from unpredictable floors, going to unpredictable destinations. A naive system — one elevator, first-come first-served — causes long wait times, unnecessary floor traversals, and poor throughput as building size or passenger volume grows.
+
+**The core challenge:** given a fleet of elevators with limited capacity, how do you decide in real time which elevator should serve each incoming request, and in what order each elevator should visit its pending floors, so that overall passenger wait and travel time is minimised?
+
+Three interconnected sub-problems must be solved together:
+
+1. **Assignment** — which elevator picks up this passenger? (wrong choice = long waits)
+2. **Movement** — in what order does an elevator visit its pending floors? (wrong order = unnecessary backtracking)
+3. **Capacity** — what happens when an elevator is full and more passengers are waiting? (no plan = stranded passengers)
+
+The simulation is also **online**: the scheduler has no visibility into future requests. It must make dispatch decisions using only requests that have already arrived, mirroring the constraints of a real building controller.
+
+---
+
+## Solution Overview
+
+Each sub-problem maps directly to a component in this project:
+
+| Sub-problem | Solution |
+|---|---|
+| **Assignment** | A pluggable scheduling algorithm (Nearest Car, Round Robin, or Zone-Based) scores each elevator and picks the best one for each incoming request. |
+| **Movement** | Every elevator independently runs the LOOK algorithm — sweep in one direction, serve all stops, reverse — eliminating unnecessary backtracking. |
+| **Capacity** | Drop-offs are processed before pick-ups at every floor to free space first. If all elevators are full, the passenger queues on the least-loaded one and waits until a slot opens. |
+
+The simulation runs tick by tick, dispatching only what has arrived, so no algorithm has unfair foreknowledge of future requests.
+
+---
+
+## How to Run
 
 ### Prerequisites
 
@@ -25,6 +66,7 @@ python main.py
 
 ### Custom configuration
 
+**Bash / macOS / Linux:**
 ```bash
 python main.py \
   --input data/large_requests.csv \
@@ -32,6 +74,17 @@ python main.py \
   --floors 60 \
   --capacity 10 \
   --algorithm nearest_car \
+  --output output/positions.csv
+```
+
+**PowerShell / Windows:**
+```powershell
+python main.py `
+  --input data/large_requests.csv `
+  --elevators 4 `
+  --floors 60 `
+  --capacity 10 `
+  --algorithm nearest_car `
   --output output/positions.csv
 ```
 
@@ -43,8 +96,12 @@ python main.py \
 | `--floors` | `60` | Number of floors |
 | `--capacity` | `8` | Max passengers per elevator |
 | `--algorithm` | `nearest_car` | `nearest_car` / `round_robin` / `zone_based` |
-| `--express` | off | Last elevator skips floors 2–10 |
-| `--verbose` | off | Print state every tick |
+| `--express` | off | Designates the last elevator as an express car |
+| `--log-level` | `WARNING` | Logging verbosity: `DEBUG` prints per-tick state and passenger events, `INFO`/`WARNING`/`ERROR` for progressively less output |
+
+#### Express elevator
+
+When `--express` is set, the last elevator is restricted to floors 1 and 11+ (it skips floors 2–10). This models a real high-rise pattern where one car is reserved for upper-floor traffic. The express elevator is assigned only to passengers whose source and destination both fall outside the skipped range; all other passengers are routed to the remaining elevators.
 
 ### Compare all three algorithms
 
@@ -52,7 +109,27 @@ python main.py \
 python compare_algorithms.py --input data/large_requests.csv
 ```
 
-Runs all algorithms on the same input and prints a side-by-side performance table.
+Runs all three algorithms on the same input and prints a side-by-side performance table. Example output:
+
+```
+Input: data/large_requests.csv  |  Elevators: 3  |  Floors: 60  |  Capacity: 8
+
+==========================================================================
+  ALGORITHM COMPARISON
+==========================================================================
+Metric                             nearest_car   round_robin    zone_based
+--------------------------------------------------------------------------
+Served passengers                           52            52            52
+Avg wait time                            32.52         43.31         64.44
+Max wait time                              142           112           293
+Avg travel time                          40.13         50.44         39.06
+Avg total time                           72.65         93.75        103.50
+Max total time                             184           153           335
+--------------------------------------------------------------------------
+
+  Best avg total time: nearest_car
+==========================================================================
+```
 
 ### Generate synthetic data
 
@@ -76,7 +153,7 @@ python visualize.py --save chart.png  # save to file
 
 ---
 
-## Input format
+## Input Format
 
 ```
 time,id,source,dest
@@ -155,14 +232,14 @@ elevator-simulation/
 ├── tests/              # pytest test suite
 ├── output/             # Generated position logs
 ├── main.py             # CLI entry point
-├── compare_algorithms.py  # Algorithm comparison tool (bonus)
+├── compare_algorithms.py  # Algorithm comparison tool
 ├── generate_data.py    # Synthetic data generator
 └── visualize.py        # Optional matplotlib chart
 ```
 
 ---
 
-## Scheduling algorithms
+## Scheduling Algorithms
 
 ### Nearest Car (default, recommended)
 
@@ -189,7 +266,7 @@ Full elevators are skipped; if all elevators are full the least-loaded one is ch
 ### Round Robin
 
 Assigns requests in strict rotation across elevators; skips full elevators. Simple and
-fair but ignores proximity—useful as a performance baseline.
+fair but ignores proximity — useful as a performance baseline.
 
 ### Zone-Based
 
@@ -197,9 +274,18 @@ Divides the building into *N* equal zones (one per elevator). Each elevator owns
 requests are dispatched to the zone elevator. Falls back to Nearest Car when the zone
 elevator is full or unavailable.
 
+### When to Use Each Algorithm
+
+| Scenario | Recommended algorithm |
+|---|---|
+| General use / unknown traffic pattern | `nearest_car` |
+| Benchmarking / fairness comparison | `round_robin` |
+| High-rise with distinct floor clusters (lobby, offices, penthouse) | `zone_based` |
+| Building with an express elevator | any + `--express` |
+
 ---
 
-## Elevator movement: SCAN / LOOK
+## Elevator Movement: SCAN / LOOK
 
 Each elevator follows the **LOOK** variant of the SCAN disk-scheduling algorithm:
 
@@ -212,7 +298,7 @@ immediately used for boarding passengers.
 
 ---
 
-## Assumptions & trade-offs
+## Assumptions & Trade-offs
 
 1. **Destination Dispatch only** — passengers cannot change their destination after assignment.
 2. **Uniform door time** — opening/closing doors takes zero extra ticks; one tick = one floor of travel.
@@ -226,7 +312,7 @@ immediately used for boarding passengers.
 
 ---
 
-## What I'd improve with more time
+## What I'd Improve with More Time
 
 - **Predictive positioning**: park idle elevators near historically busy floors during
   rush hours instead of leaving them where they last stopped.
@@ -242,6 +328,6 @@ immediately used for boarding passengers.
 
 ---
 
-## Time spent
+## Time Spent
 
 Approximately **4–5 hours** including design, implementation, testing, and documentation.
