@@ -72,6 +72,11 @@ class ElevatorSimulation:
                 f"Choose from: {list(mapping)}"
             )
         if algorithm == "zone_based":
+            if any(e.express_floors is not None for e in self.elevators):
+                logger.warning(
+                    "Combining 'zone_based' algorithm with express_config may cause "
+                    "passengers to be unroutable if zone and express boundaries conflict."
+                )
             return ZoneBasedScheduler(self.elevators, self.num_floors)
         return mapping[algorithm](self.elevators)
 

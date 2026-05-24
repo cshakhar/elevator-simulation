@@ -76,7 +76,7 @@ Full elevators are skipped; if all are full, the passenger is queued on the leas
 
 ### Zone-based algorithm
 
-Zone size is `ceil(num_floors / num_elevators)`. Zone ownership is by index: elevator 0 owns floors 1–zone_size, elevator 1 owns the next zone, etc. If the zone elevator is full or cannot serve either floor, falls back to NearestCar.
+Zone size is `ceil(num_floors / num_elevators)`. Zone ownership is by index: elevator 0 owns floors 1–zone_size, elevator 1 owns the next zone, etc. If the zone elevator is full, falls back to NearestCar. Zone is a **scheduling preference only** — `serves_floor()` is not checked during the zone assignment so cross-zone destinations and burst overflow are handled correctly. Physical floor restrictions (`express_floors`) are still enforced by the NearestCar fallback.
 
 ### Express elevator configuration
 
@@ -102,7 +102,7 @@ express_config = {
 All runtime diagnostics go through `logging.getLogger("elevator.simulation")`. Both `main.py` and `compare_algorithms.py` accept `--log-level DEBUG|INFO|WARNING|ERROR` (default `WARNING`) and call `logging.basicConfig` at startup.
 
 Log levels in use:
-- `WARNING` — duplicate passenger IDs, empty CSV, invalid `express_config` IDs, unserved passengers at time-cap
+- `WARNING` — duplicate passenger IDs, empty CSV, invalid `express_config` IDs, unserved passengers at time-cap, combining `zone_based` algorithm with `express_config` (boundaries may conflict)
 - `DEBUG` — per-tick elevator state, and one line each when a passenger is assigned, boards, or alights
 
 ### Error handling

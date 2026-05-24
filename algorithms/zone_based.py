@@ -33,12 +33,13 @@ class ZoneBasedScheduler(BaseScheduler):
         for i, (low, high) in enumerate(self.zones):
             if low <= passenger.source <= high:
                 elevator = self.elevators[i]
-                if (
-                    not elevator.is_full
-                    and elevator.serves_floor(passenger.source)
-                    and elevator.serves_floor(passenger.dest)
-                ):
+                # Zone is a scheduling preference, not a physical restriction.
+                # serves_floor() gates are intentionally omitted here so that
+                # cross-zone destinations and burst overflow work correctly.
+                # Physical floor restrictions (express_config) are enforced by
+                # the NearestCar fallback below.
+                if not elevator.is_full:
                     return elevator.id
-                break  # zone found but unavailable; use fallback
+                break  # zone elevator busy; let NearestCar decide freely
 
         return self._fallback_scheduler.assign(passenger)

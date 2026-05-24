@@ -303,7 +303,11 @@ fair but ignores proximity — useful as a performance baseline.
 
 Divides the building into *N* equal zones (one per elevator). Each elevator owns its zone;
 requests are dispatched to the zone elevator. Falls back to Nearest Car when the zone
-elevator is full or unavailable.
+elevator is full. Zone assignment is a scheduling preference — cross-zone destinations are
+handled without penalty, and idle elevators from other zones can absorb burst traffic.
+
+> **Note:** Combining `zone_based` with `--express` is supported but triggers a warning,
+> as conflicting floor restrictions can make some passengers unroutable through the zone logic.
 
 ### When to Use Each Algorithm
 

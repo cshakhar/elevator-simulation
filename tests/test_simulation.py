@@ -317,6 +317,25 @@ class TestSchedulers:
         p = Passenger("p1", 0, 3, 8)
         assert scheduler.assign(p) == 1
 
+    def test_zone_based_cross_zone_destination(self):
+        from algorithms.zone_based import ZoneBasedScheduler
+        # 3 elevators, 30 floors → zones [1-10], [11-20], [21-30]
+        elevators = [self._make_elevator(i, 1) for i in range(3)]
+        scheduler = ZoneBasedScheduler(elevators, num_floors=30)
+        # source=5 (zone 0), dest=25 (zone 2) — zone 0 elevator should still
+        # be assigned; cross-zone destination must not block the zone preference
+        p = Passenger("p1", 0, 5, 25)
+        assert scheduler.assign(p) == 0
+
+    def test_zone_based_with_express_config_warns(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
+            ElevatorSimulation(
+                num_elevators=2, num_floors=20,
+                algorithm="zone_based",
+                express_config={0: list(range(1, 11))},
+            )
+        assert "zone_based" in caplog.text
+
     def test_fallback_no_elevators_raises(self):
         from algorithms.nearest_car import NearestCarScheduler
         scheduler = NearestCarScheduler([])
