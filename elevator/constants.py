@@ -11,6 +11,7 @@ ALGORITHMS = ["nearest_car", "round_robin", "zone_based"]
 DEFAULT_INPUT_FILE = "data/sample_requests.csv"
 DEFAULT_OUTPUT_POSITIONS = "output/elevator_positions.csv"
 DEFAULT_OUTPUT_STATS = "output/passenger_stats.log"
+DEFAULT_OUTPUT_METRICS = "output/metrics.csv"
 DEFAULT_GENERATED_FILE = "data/generated_requests.csv"
 
 # CSV column names (input format and generated output)

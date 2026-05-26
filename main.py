@@ -8,6 +8,8 @@ Examples
   python main.py --elevators 4 --floors 20 --capacity 10
   python main.py --input data/large_requests.csv --algorithm zone_based
   python main.py --input data/large_requests.csv --express --verbose
+  python main.py --log-format json --log-level DEBUG
+  python main.py --metrics-output output/metrics.csv
 """
 import argparse
 import logging
@@ -20,12 +22,14 @@ from elevator.constants import (
     DEFAULT_INPUT_FILE,
     DEFAULT_NUM_ELEVATORS,
     DEFAULT_NUM_FLOORS,
+    DEFAULT_OUTPUT_METRICS,
     DEFAULT_OUTPUT_POSITIONS,
     DEFAULT_OUTPUT_STATS,
     EXPRESS_LOBBY_FLOOR,
     EXPRESS_SKIP_HIGH,
 )
 from elevator.log_filter import RequestIdFilter
+from elevator.log_formatter import JsonFormatter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)
@@ -48,6 +52,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--stats-output", default=DEFAULT_OUTPUT_STATS,
         help=f"Passenger statistics log path  (default: {DEFAULT_OUTPUT_STATS})",
+    )
+    p.add_argument(
+        "--metrics-output", default=None, metavar="PATH",
+        help=f"Write per-tick metrics CSV to PATH  (e.g. {DEFAULT_OUTPUT_METRICS}); omit to skip",
     )
     p.add_argument(
         "--elevators", type=int, default=DEFAULT_NUM_ELEVATORS,
@@ -80,16 +88,30 @@ def parse_args() -> argparse.Namespace:
         default="WARNING",
         help="Logging verbosity; DEBUG prints per-tick state (default: WARNING)",
     )
+    p.add_argument(
+        "--log-format",
+        choices=["text", "json"],
+        default="text",
+        help="Log output format: human-readable text or JSON objects (default: text)",
+    )
     return p.parse_args()
+
+
+def _configure_logging(log_level: str, log_format: str) -> None:
+    logging.basicConfig(level=log_level)
+    handler = logging.getLogger().handlers[0]
+    handler.addFilter(RequestIdFilter())
+    if log_format == "json":
+        handler.setFormatter(JsonFormatter())
+    else:
+        handler.setFormatter(
+            logging.Formatter("%(levelname)s [%(request_id)s] %(name)s: %(message)s")
+        )
 
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(
-        level=args.log_level,
-        format="%(levelname)s [%(request_id)s] %(name)s: %(message)s",
-    )
-    logging.getLogger().handlers[0].addFilter(RequestIdFilter())
+    _configure_logging(args.log_level, args.log_format)
 
     express_config = None
     if args.express and args.elevators >= 2:
@@ -140,6 +162,12 @@ def main() -> None:
         print(f"Passenger stats saved to : {args.stats_output}")
     except OSError as e:
         logger.error("%s", e)
+    if args.metrics_output:
+        try:
+            sim.save_metrics(args.metrics_output)
+            print(f"Per-tick metrics saved to: {args.metrics_output}")
+        except OSError as e:
+            logger.error("%s", e)
 
 
 if __name__ == "__main__":

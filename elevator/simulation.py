@@ -1,3 +1,4 @@
+
 import csv
 import logging
 import os
@@ -14,6 +15,8 @@ from elevator.constants import (
     STOP_PICKUP,
 )
 from elevator.context import request_id_var
+from elevator.events import SimulationEventListener
+from elevator.metrics import SimulationMetrics
 from elevator.models import Direction, Elevator, Passenger
 from elevator.stats import compute_statistics, print_statistics, save_statistics
 
@@ -28,6 +31,7 @@ class ElevatorSimulation:
         capacity: int = DEFAULT_CAPACITY,
         algorithm: str = DEFAULT_ALGORITHM,
         express_config: Optional[Dict[int, List[int]]] = None,
+        listeners: Optional[List[SimulationEventListener]] = None,
     ):
         if num_elevators < 1:
             raise ValueError(f"num_elevators must be >= 1, got {num_elevators}")
@@ -41,6 +45,8 @@ class ElevatorSimulation:
         self.capacity = capacity
         self.algorithm = algorithm
         self.current_time = 0
+        self._listeners: List[SimulationEventListener] = listeners or []
+        self.metrics = SimulationMetrics()
 
         self.elevators = [
             Elevator(i, num_floors, capacity) for i in range(num_elevators)
@@ -141,6 +147,10 @@ class ElevatorSimulation:
         except OSError as exc:
             raise OSError(f"Could not write position log to {filepath!r}: {exc}") from exc
 
+    def save_metrics(self, filepath: str) -> None:
+        """Write per-tick metrics (assignments, pickups, dropoffs, queue depth, utilisation) to CSV."""
+        self.metrics.save(filepath)
+
     # ------------------------------------------------------------------
     # Main simulation loop
     # ------------------------------------------------------------------
@@ -174,6 +184,8 @@ class ElevatorSimulation:
             seen_ids[pid] = req["time"]
 
         while self.current_time <= max_sim_time:
+            self.metrics.begin_tick(self.current_time)
+
             # 1. Log current elevator positions
             self._log_positions()
 
@@ -185,6 +197,12 @@ class ElevatorSimulation:
             # 3. Process pickups and dropoffs at each elevator's current floor
             for elevator in self.elevators:
                 self._process_floor(elevator)
+
+            # Snapshot queue depth and utilisation after all activity this tick.
+            self.metrics.end_tick(self.elevators, self.passengers)
+
+            for listener in self._listeners:
+                listener.on_tick_complete(self.current_time)
 
             # 4. Exit when all passengers are served and no future work remains
             if self._is_done(max_request_time):
@@ -211,10 +229,15 @@ class ElevatorSimulation:
                 len(unserved), unserved,
             )
 
+        final_stats = self.get_statistics()
+        for listener in self._listeners:
+            listener.on_simulation_complete(final_stats, self.current_time)
+
     def _reset(self) -> None:
         self.current_time = 0
         self.passengers.clear()
         self.position_log.clear()
+        self.metrics = SimulationMetrics()
         for e in self.elevators:
             e.reset()
         # Rebuild scheduler so round-robin counter resets, etc.
@@ -230,13 +253,15 @@ class ElevatorSimulation:
         # Scope a short request ID to this dispatch so every log record emitted
         # inside (including inside the scheduler) carries the same trace token.
         # try/finally guarantees the var is reset even if assignment raises.
-        token = request_id_var.set(uuid.uuid4().hex[:8])
+        trace_id = uuid.uuid4().hex[:8]
+        token = request_id_var.set(trace_id)
         try:
             passenger = Passenger(
                 id=req["id"],
                 request_time=req["time"],
                 source=source,
                 dest=dest,
+                request_id=trace_id,  # stored so board/alight logs reuse the same token
             )
             self.passengers[passenger.id] = passenger
 
@@ -257,6 +282,10 @@ class ElevatorSimulation:
             elevator = self.elevators[elevator_id]
             elevator.add_pickup(source, passenger.id)
             logger.debug("T=%d: %r assigned to E%d (src=%d dst=%d)", self.current_time, passenger.id, elevator_id, source, dest)
+
+            self.metrics.record_assignment()
+            for listener in self._listeners:
+                listener.on_passenger_assigned(passenger, elevator_id, self.current_time)
         finally:
             request_id_var.reset(token)
 
@@ -274,10 +303,19 @@ class ElevatorSimulation:
                 self.passengers[pid].dropoff_time = self.current_time
                 stop[STOP_DROPOFF].remove(pid)
                 p = self.passengers[pid]
-                logger.debug(
-                    "T=%d: %r alighted E%d at floor %d (wait=%d travel=%d)",
-                    self.current_time, pid, elevator.id, floor, p.wait_time, p.travel_time,
-                )
+                # Restore the passenger's trace token so the alight log line
+                # shares the same request_id as the original dispatch.
+                _tok = request_id_var.set(p.request_id or "-")
+                try:
+                    logger.debug(
+                        "T=%d: %r alighted E%d at floor %d (wait=%d travel=%d)",
+                        self.current_time, pid, elevator.id, floor, p.wait_time, p.travel_time,
+                    )
+                    self.metrics.record_dropoff()
+                    for listener in self._listeners:
+                        listener.on_passenger_alighted(p, elevator, self.current_time)
+                finally:
+                    request_id_var.reset(_tok)
 
         # Pick up waiting passengers (FIFO, respect capacity)
         for pid in list(stop[STOP_PICKUP]):
@@ -287,10 +325,19 @@ class ElevatorSimulation:
             self.passengers[pid].pickup_time = self.current_time
             stop[STOP_PICKUP].remove(pid)
             elevator.add_dropoff(self.passengers[pid].dest, pid)
-            logger.debug(
-                "T=%d: %r boarded E%d at floor %d (dst=%d)",
-                self.current_time, pid, elevator.id, floor, self.passengers[pid].dest,
-            )
+            p = self.passengers[pid]
+            # Same trace restoration as above for board events.
+            _tok = request_id_var.set(p.request_id or "-")
+            try:
+                logger.debug(
+                    "T=%d: %r boarded E%d at floor %d (dst=%d)",
+                    self.current_time, pid, elevator.id, floor, p.dest,
+                )
+                self.metrics.record_pickup()
+                for listener in self._listeners:
+                    listener.on_passenger_boarded(p, elevator, self.current_time)
+            finally:
+                request_id_var.reset(_tok)
 
         elevator.remove_stop_if_empty(floor)
 

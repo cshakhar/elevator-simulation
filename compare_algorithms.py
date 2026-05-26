@@ -20,6 +20,7 @@ from elevator.constants import (
     DEFAULT_NUM_FLOORS,
 )
 from elevator.log_filter import RequestIdFilter
+from elevator.log_formatter import JsonFormatter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)
@@ -108,9 +109,22 @@ def main() -> None:
         default="WARNING",
         help="Logging verbosity (default: WARNING)",
     )
+    p.add_argument(
+        "--log-format",
+        choices=["text", "json"],
+        default="text",
+        help="Log output format: human-readable text or JSON objects (default: text)",
+    )
     args = p.parse_args()
-    logging.basicConfig(level=args.log_level, format="%(levelname)s [%(request_id)s] %(name)s: %(message)s")
-    logging.getLogger().handlers[0].addFilter(RequestIdFilter())
+    logging.basicConfig(level=args.log_level)
+    handler = logging.getLogger().handlers[0]
+    handler.addFilter(RequestIdFilter())
+    if args.log_format == "json":
+        handler.setFormatter(JsonFormatter())
+    else:
+        handler.setFormatter(
+            logging.Formatter("%(levelname)s [%(request_id)s] %(name)s: %(message)s")
+        )
 
     print(f"Input: {args.input}  |  Elevators: {args.elevators}  "
           f"|  Floors: {args.floors}  |  Capacity: {args.capacity}\n")

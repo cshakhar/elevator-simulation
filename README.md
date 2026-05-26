@@ -22,6 +22,7 @@ immediately assigns them to a specific elevator and routes it optimally.
 - [Input Format](#input-format)
 - [Output](#output)
 - [Logging & Traceability](#logging--traceability)
+- [Observability](#observability)
 - [Architecture](#architecture)
 - [Scheduling Algorithms](#scheduling-algorithms)
   - [Nearest Car](#nearest-car-default-recommended)
@@ -102,7 +103,10 @@ python main.py \
   --floors 60 \
   --capacity 10 \
   --algorithm nearest_car \
-  --output output/positions.csv
+  --output output/positions.csv \
+  --metrics-output output/metrics.csv \
+  --log-format json \
+  --log-level INFO
 ```
 
 **PowerShell / Windows:**
@@ -113,7 +117,10 @@ python main.py `
   --floors 60 `
   --capacity 10 `
   --algorithm nearest_car `
-  --output output/positions.csv
+  --output output/positions.csv `
+  --metrics-output output/metrics.csv `
+  --log-format json `
+  --log-level INFO
 ```
 
 | Flag | Default | Description |
@@ -121,12 +128,14 @@ python main.py `
 | `--input` | `data/sample_requests.csv` | CSV request file |
 | `--output` | `output/elevator_positions.csv` | Position log output |
 | `--stats-output` | `output/passenger_stats.log` | Passenger statistics log output |
+| `--metrics-output` | _(omit to skip)_ | Per-tick metrics CSV (assignments, pickups, dropoffs, queue depth, utilisation) |
 | `--elevators` | `3` | Number of elevators (1–10) |
 | `--floors` | `60` | Number of floors |
 | `--capacity` | `8` | Max passengers per elevator |
 | `--algorithm` | `nearest_car` | `nearest_car` / `round_robin` / `zone_based` |
 | `--express` | off | Designates the last elevator as an express car |
 | `--log-level` | `WARNING` | `DEBUG` — per-tick state + every passenger event; `INFO` — simulation lifecycle, scheduler fallbacks, express config; `WARNING`/`ERROR` — anomalies only |
+| `--log-format` | `text` | `text` — human-readable; `json` — one JSON object per line for machine ingestion |
 
 #### Express elevator
 
@@ -136,10 +145,10 @@ When `--express` is set, the last elevator is restricted to floors 1 and 11+ (it
 
 ```bash
 python compare_algorithms.py --input data/large_requests.csv
-python compare_algorithms.py --input data/large_requests.csv --log-level DEBUG
+python compare_algorithms.py --input data/large_requests.csv --log-level DEBUG --log-format json
 ```
 
-Runs all three algorithms on the same input and prints a side-by-side performance table. Accepts the same `--log-level` flag as `main.py`; each algorithm run is isolated so a failure in one does not abort the others. Example output:
+Runs all three algorithms on the same input and prints a side-by-side performance table. Accepts the same `--log-level` and `--log-format` flags as `main.py`; each algorithm run is isolated so a failure in one does not abort the others. Example output:
 
 ```
 Input: data/large_requests.csv  |  Elevators: 3  |  Floors: 60  |  Capacity: 8
@@ -234,23 +243,13 @@ time,elevator_0,elevator_1,elevator_2
     P90     :     69.10 ticks
     P95     :     74.05 ticks
     Std Dev :     27.88 ticks
-
-  Travel Time (dropoff - pickup):
-    Min     :     25 ticks
-    ...
-
-  Total Time  (dropoff - request):
-    Min     :     36 ticks
-    ...
+  ...
 
   Wait Time Distribution:
     0-5 ticks    :   4 passengers (40.0%)  ####
     6-20 ticks   :   3 passengers (30.0%)  ###
     21-50 ticks  :   1 passengers (10.0%)  #
     51+ ticks    :   2 passengers (20.0%)  ##
-
-  Passengers with zero wait               :   3 (30.0%)
-  Passengers with wait > 20 ticks (long wait) :   3 (30.0%)
 
   Per-Elevator Breakdown:
   ------------------------------------------------------------
@@ -263,7 +262,25 @@ time,elevator_0,elevator_1,elevator_2
 ============================================================
 ```
 
-Each time block reports **min, max, average, median, P90, P95, and standard deviation** (all in ticks). The wait-time distribution gives a quick histogram view without needing a chart. The per-elevator table highlights load imbalance across the fleet.
+### 3. Per-Tick Metrics (`--metrics-output output/metrics.csv`)
+
+When `--metrics-output` is provided, a CSV is written with one row per simulation tick:
+
+```
+tick,assignments,pickups,dropoffs,queue_depth,elevator_utilisation
+0,2,2,0,0,0.0833
+1,0,0,0,0,0.25
+...
+```
+
+| Column | Description |
+|--------|-------------|
+| `tick` | Simulation tick |
+| `assignments` | Passengers assigned to an elevator this tick |
+| `pickups` | Passengers who boarded an elevator this tick |
+| `dropoffs` | Passengers who alighted this tick |
+| `queue_depth` | Passengers still waiting (not yet boarded) at end of tick |
+| `elevator_utilisation` | Fraction of total fleet capacity currently occupied |
 
 ---
 
@@ -278,11 +295,20 @@ Each time block reports **min, max, average, median, P90, P95, and standard devi
 | `INFO` | Simulation start/end summary, express config applied, scheduler fallback events (zone → NearestCar, all-full → least-loaded) |
 | `DEBUG` | Per-tick elevator state, and one line each when a passenger is assigned, boards, or alights |
 
+### Log format
+
+Use `--log-format text` (default) for human-readable output or `--log-format json` to emit one JSON object per line, suitable for ingestion by Loki, Datadog, or ELK:
+
+```json
+{"ts": "2026-05-26T10:00:00", "level": "INFO", "request_id": "-", "logger": "elevator.simulation", "msg": "Simulation starting: 3 elevator(s), 60 floors, ..."}
+{"ts": "2026-05-26T10:00:00", "level": "DEBUG", "request_id": "3f2a1b9c", "logger": "elevator.simulation", "msg": "T=0: 'passenger1' assigned to E0 (src=1 dst=51)"}
+```
+
 ### Request tracing with `request_id`
 
-Every passenger dispatch generates a short 8-character UUID (`request_id`) that is automatically stamped on every log record for that request's lifecycle — assignment, boarding, and alighting — without needing to pass it manually to each call site.
+Every passenger dispatch generates a short 8-character UUID (`request_id`) that is stored on the `Passenger` object and automatically stamped on every log record for that passenger's full lifecycle — assignment, boarding, and alighting.
 
-The mechanism uses Python's `contextvars.ContextVar` (`elevator/context.py`) set inside `_dispatch`, combined with a `logging.Filter` (`elevator/log_filter.py`) that injects the value into each `LogRecord` before it is formatted.
+The mechanism uses Python's `contextvars.ContextVar` (`elevator/context.py`) set in `_dispatch` and restored in `_process_floor` for each board/alight event, combined with a `logging.Filter` (`elevator/log_filter.py`) that injects the value into each `LogRecord`.
 
 Example `--log-level DEBUG` output, filtered to a single `request_id`:
 
@@ -296,16 +322,74 @@ Non-request log lines (tick state, warnings) show `[-]` as the `request_id` so t
 
 ---
 
+## Observability
+
+Beyond logs and end-of-run statistics, the simulation exposes two programmatic hooks for external monitoring.
+
+### Per-tick metrics (`SimulationMetrics`)
+
+`sim.metrics` is populated during every `run()` call. Access it programmatically or write it to a file:
+
+```python
+sim.run(requests)
+sim.save_metrics("output/metrics.csv")   # CSV with one row per tick
+
+# Or access in-memory
+for tick in sim.metrics.ticks:
+    print(tick.tick, tick.queue_depth, tick.elevator_utilisation)
+```
+
+### Event hooks (`SimulationEventListener`)
+
+Register listeners to react to simulation events without modifying simulation internals:
+
+```python
+from elevator.events import SimulationEventListener
+from elevator.simulation import ElevatorSimulation
+
+class MyListener(SimulationEventListener):
+    def on_passenger_assigned(self, passenger, elevator_id, tick):
+        print(f"T={tick}: {passenger.id} → E{elevator_id}")
+
+    def on_passenger_boarded(self, passenger, elevator, tick):
+        print(f"T={tick}: {passenger.id} boarded E{elevator.id}")
+
+    def on_passenger_alighted(self, passenger, elevator, tick):
+        print(f"T={tick}: {passenger.id} alighted E{elevator.id} (wait={passenger.wait_time})")
+
+    def on_simulation_complete(self, stats, tick):
+        print(f"Done at T={tick}: {stats['served']}/{stats['total']} served")
+
+sim = ElevatorSimulation(listeners=[MyListener()])
+sim.run(requests)
+```
+
+All five hook methods have no-op defaults so you only override what you need:
+
+| Hook | Fires when |
+|---|---|
+| `on_passenger_assigned` | Scheduler assigns a passenger to an elevator |
+| `on_passenger_boarded` | Passenger physically boards an elevator |
+| `on_passenger_alighted` | Passenger reaches their destination and exits |
+| `on_tick_complete` | All activity for the current tick is done |
+| `on_simulation_complete` | Simulation ends (receives final stats dict) |
+
+---
+
 ## Architecture
 
 ```
 elevator-simulation/
 ├── elevator/
+│   ├── constants.py    # All shared defaults, paths, and magic values
 │   ├── models.py       # Passenger, Elevator, Direction
 │   ├── simulation.py   # Tick-based simulation engine
 │   ├── stats.py        # Statistics computation & reporting
-│   ├── context.py      # ContextVar for per-request request_id
-│   └── log_filter.py   # Logging filter that stamps request_id on every record
+│   ├── metrics.py      # Per-tick metrics collection (SimulationMetrics)
+│   ├── events.py       # Event hook interface (SimulationEventListener)
+│   ├── context.py      # ContextVar for per-request trace ID
+│   ├── log_filter.py   # Logging filter that stamps request_id on every record
+│   └── log_formatter.py  # JsonFormatter for machine-readable log output
 ├── algorithms/
 │   ├── base.py         # Abstract BaseScheduler
 │   ├── nearest_car.py  # Primary algorithm
@@ -313,7 +397,7 @@ elevator-simulation/
 │   └── zone_based.py   # Zone-dispatch algorithm
 ├── data/               # CSV request files
 ├── tests/              # pytest test suite
-├── output/             # Generated position logs and stats
+├── output/             # Generated position logs, stats, and metrics
 ├── main.py             # CLI entry point
 ├── compare_algorithms.py  # Algorithm comparison tool
 ├── generate_data.py    # Synthetic data generator
