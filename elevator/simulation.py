@@ -227,6 +227,9 @@ class ElevatorSimulation:
     def _dispatch(self, req: Dict) -> None:
         source = max(1, min(self.num_floors, int(req["source"])))
         dest = max(1, min(self.num_floors, int(req["dest"])))
+        # Scope a short request ID to this dispatch so every log record emitted
+        # inside (including inside the scheduler) carries the same trace token.
+        # try/finally guarantees the var is reset even if assignment raises.
         token = request_id_var.set(uuid.uuid4().hex[:8])
         try:
             passenger = Passenger(

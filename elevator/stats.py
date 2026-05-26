@@ -9,6 +9,8 @@ _WIDTH = 60
 
 
 def _percentile(sorted_vals: List[int], pct: float) -> float:
+    # Fractional index into sorted list; linearly interpolate between the two
+    # surrounding values so results are smooth rather than step-wise.
     idx = pct / 100 * (len(sorted_vals) - 1)
     lo = int(idx)
     hi = min(lo + 1, len(sorted_vals) - 1)
@@ -24,6 +26,8 @@ def _summarize(values: List[int]) -> Dict:
     sorted_vals = sorted(values)
     n = len(sorted_vals)
     avg = sum(values) / n
+    # Population stddev (divide by n, not n-1) — we have the full passenger set,
+    # not a sample, so Bessel's correction does not apply.
     stddev = math.sqrt(sum((v - avg) ** 2 for v in values) / n)
     return {
         "min": sorted_vals[0],
