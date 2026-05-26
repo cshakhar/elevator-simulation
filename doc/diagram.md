@@ -8,22 +8,28 @@ The diagrams below show the full execution flow from CLI invocation through to s
 sequenceDiagram
     actor User
     participant main as main.py
+    participant loader as elevator.io
     participant sim as ElevatorSimulation
+    participant factory as algorithms/factory
     participant sched as Scheduler
     participant elev as Elevator(s)
+    participant metrics as SimulationMetrics
     participant stats as stats.py
 
     User->>main: python main.py [args]
     main->>sim: ElevatorSimulation(elevators, floors, capacity, algorithm)
     sim->>elev: Elevator(id, num_floors, capacity) × N
-    sim->>sched: create scheduler (nearest_car / round_robin / zone_based)
-    main->>sim: load_requests(filepath)
-    sim-->>main: List[Dict] requests
+    sim->>factory: create_scheduler(algorithm, elevators, num_floors)
+    factory-->>sim: Scheduler instance
 
-    main->>sim: run(requests, verbose)
+    main->>loader: load_requests(filepath)
+    loader-->>main: List[Dict] requests
+
+    main->>sim: run(requests)
     sim->>sim: _reset() — clear passengers, logs, rebuild scheduler
 
     loop each tick (current_time ≤ max_sim_time)
+        sim->>metrics: begin_tick(current_time)
         sim->>sim: _log_positions()
         alt requests arrive at current_time
             sim->>sim: _dispatch(req)
@@ -36,6 +42,8 @@ sequenceDiagram
             Note over sim,elev: Drop off riders → set dropoff_time
             Note over sim,elev: Board waiting passengers up to capacity<br/>set pickup_time, call add_dropoff(dest)
         end
+        sim->>metrics: end_tick(elevators, passengers)
+        sim->>sim: fire on_tick_complete listeners
         sim->>sim: _is_done() → break if all served & all elevators idle
         loop for each elevator
             elev->>elev: move() — LOOK algorithm
@@ -43,11 +51,14 @@ sequenceDiagram
         sim->>sim: current_time += 1
     end
 
+    sim->>sim: fire on_simulation_complete listeners
     main->>sim: save_position_log(output_path)
-    sim-->>main: writes output/elevator_positions.csv
-    main->>sim: print_statistics()
+    main->>sim: print_statistics() / save_statistics()
     sim->>stats: compute_statistics(passengers)
     stats-->>User: wait / travel / total time summary
+    opt --metrics-output provided
+        main->>sim: save_metrics(path)
+    end
 ```
 
 ## Passenger State Machine
