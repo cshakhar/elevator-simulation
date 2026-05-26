@@ -26,5 +26,12 @@ def create_scheduler(algorithm: str, elevators, num_floors: int):
                 "Combining 'zone_based' algorithm with express_config may cause "
                 "passengers to be unroutable if zone and express boundaries conflict."
             )
+        if len(elevators) > num_floors:
+            logger.warning(
+                "zone_based: num_elevators (%d) > num_floors (%d) — "
+                "%d elevator(s) will have no valid zone and receive assignments "
+                "only via NearestCar fallback.",
+                len(elevators), num_floors, len(elevators) - num_floors,
+            )
         return ZoneBasedScheduler(elevators, num_floors)
     return mapping[algorithm](elevators)

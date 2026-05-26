@@ -78,6 +78,13 @@ class TestSchedulers:
         p = Passenger("p1", 0, 5, 25)
         assert scheduler.assign(p) == 0
 
+    def test_zone_based_more_elevators_than_floors_warns(self, caplog):
+        from algorithms.factory import create_scheduler
+        elevators = [Elevator(i, 5, 8) for i in range(6)]  # 6 elevators, 5 floors
+        with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
+            create_scheduler("zone_based", elevators, num_floors=5)
+        assert "no valid zone" in caplog.text
+
     def test_zone_based_with_express_config_warns(self, caplog):
         with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
             ElevatorSimulation(
