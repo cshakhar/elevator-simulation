@@ -308,7 +308,7 @@ Use `--log-format text` (default) for human-readable output or `--log-format jso
 
 Every passenger dispatch generates a short 8-character UUID (`request_id`) that is stored on the `Passenger` object and automatically stamped on every log record for that passenger's full lifecycle — assignment, boarding, and alighting.
 
-The mechanism uses Python's `contextvars.ContextVar` (`elevator/context.py`) set in `_dispatch` and restored in `_process_floor` for each board/alight event, combined with a `logging.Filter` (`elevator/log_filter.py`) that injects the value into each `LogRecord`.
+The mechanism uses Python's `contextvars.ContextVar` (`elevator/observability/context.py`) set in `_dispatch` and restored in `_process_floor` for each board/alight event, combined with a `logging.Filter` (`elevator/observability/filter.py`) that injects the value into each `LogRecord`.
 
 Example `--log-level DEBUG` output, filtered to a single `request_id`:
 
@@ -344,8 +344,8 @@ for tick in sim.metrics.ticks:
 Register listeners to react to simulation events without modifying simulation internals:
 
 ```python
-from elevator.events import SimulationEventListener
-from elevator.simulation import ElevatorSimulation
+from elevator import ElevatorSimulation
+from elevator.observability.events import SimulationEventListener
 
 class MyListener(SimulationEventListener):
     def on_passenger_assigned(self, passenger, elevator_id, tick):
@@ -381,28 +381,42 @@ All five hook methods have no-op defaults so you only override what you need:
 ```
 elevator-simulation/
 ├── elevator/
-│   ├── constants.py    # All shared defaults, paths, and magic values
-│   ├── models.py       # Passenger, Elevator, Direction
-│   ├── simulation.py   # Tick-based simulation engine
-│   ├── stats.py        # Statistics computation & reporting
-│   ├── metrics.py      # Per-tick metrics collection (SimulationMetrics)
-│   ├── events.py       # Event hook interface (SimulationEventListener)
-│   ├── context.py      # ContextVar for per-request trace ID
-│   ├── log_filter.py   # Logging filter that stamps request_id on every record
-│   └── log_formatter.py  # JsonFormatter for machine-readable log output
+│   ├── __init__.py              # Package entry point; exports ElevatorSimulation
+│   ├── simulation.py            # Tick-based simulation engine (orchestrator)
+│   ├── core/
+│   │   ├── constants.py         # All shared defaults, paths, and magic values
+│   │   └── models.py            # Passenger, Elevator, Direction
+│   ├── io/
+│   │   └── loader.py            # CSV request loading (load_requests)
+│   └── observability/
+│       ├── context.py           # ContextVar for per-request trace ID
+│       ├── events.py            # Event hook interface (SimulationEventListener)
+│       ├── filter.py            # Logging filter that stamps request_id on every record
+│       ├── formatter.py         # JsonFormatter for machine-readable log output
+│       ├── metrics.py           # Per-tick metrics collection (SimulationMetrics)
+│       └── stats.py             # Statistics computation & reporting
 ├── algorithms/
-│   ├── base.py         # Abstract BaseScheduler
-│   ├── nearest_car.py  # Primary algorithm
-│   ├── round_robin.py  # Baseline algorithm
-│   └── zone_based.py   # Zone-dispatch algorithm
-├── data/               # CSV request files
-├── tests/              # pytest test suite
-├── output/             # Generated position logs, stats, and metrics
-├── main.py             # CLI entry point
-├── compare_algorithms.py  # Algorithm comparison tool
-├── generate_data.py    # Synthetic data generator
-└── visualize.py        # Optional matplotlib chart
+│   ├── base.py                  # Abstract BaseScheduler + fallback logic
+│   ├── factory.py               # Scheduler factory (create_scheduler)
+│   ├── nearest_car.py           # Primary algorithm
+│   ├── round_robin.py           # Baseline algorithm
+│   └── zone_based.py            # Zone-dispatch algorithm
+├── data/                        # CSV request files
+├── tests/                       # pytest test suite (110 tests)
+├── output/                      # Generated position logs, stats, and metrics
+├── main.py                      # CLI entry point
+├── compare_algorithms.py        # Algorithm comparison tool
+├── generate_data.py             # Synthetic data generator
+└── visualize.py                 # Optional matplotlib chart
 ```
+
+### Subpackage responsibilities
+
+| Subpackage | Contents | Responsibility |
+|---|---|---|
+| `elevator.core` | `constants`, `models` | Domain types and all shared constants — the foundation everything else imports from |
+| `elevator.io` | `loader` | Reading passenger request CSVs; extendable for future output writers |
+| `elevator.observability` | `context`, `events`, `filter`, `formatter`, `metrics`, `stats` | Everything that monitors or reports on the simulation: trace IDs, event hooks, logging, per-tick counters, and end-of-run statistics |
 
 ---
 
