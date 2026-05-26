@@ -33,6 +33,10 @@ def parse_args() -> argparse.Namespace:
         help="Position log output path  (default: output/elevator_positions.csv)",
     )
     p.add_argument(
+        "--stats-output", default="output/passenger_stats.log",
+        help="Passenger statistics log path  (default: output/passenger_stats.log)",
+    )
+    p.add_argument(
         "--elevators", type=int, default=3,
         help="Number of elevators  (default: 3)",
     )
@@ -117,6 +121,11 @@ def main() -> None:
     except OSError as e:
         logger.error("%s", e)
     sim.print_statistics()
+    try:
+        sim.save_statistics(args.stats_output)
+        print(f"Passenger stats saved to : {args.stats_output}")
+    except OSError as e:
+        logger.error("%s", e)
 
 
 if __name__ == "__main__":

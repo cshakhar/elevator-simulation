@@ -10,7 +10,8 @@ python main.py
 
 # Run with full options
 python main.py --input data/large_requests.csv --elevators 4 --floors 80 \
-               --capacity 10 --algorithm zone_based --express --log-level DEBUG
+               --capacity 10 --algorithm zone_based --express --log-level DEBUG \
+               --stats-output output/passenger_stats.log
 
 # Run tests
 pytest tests/ -v
@@ -107,7 +108,7 @@ Log levels in use:
 
 ### Error handling
 
-`ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm name. `load_requests` raises `ValueError` for missing columns, unparseable values (with filename and line number), or a non-UTF-8 file. `save_position_log` raises `OSError` if the output path is not writable. `generate_data.py` raises `ValueError` for `num_floors < 2`, `num_passengers < 1`, or `max_time < 0`.
+`ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm name. `load_requests` raises `ValueError` for missing columns, unparseable values (with filename and line number), or a non-UTF-8 file. `save_position_log` and `save_statistics` raise `OSError` if the output path is not writable. `generate_data.py` raises `ValueError` for `num_floors < 2`, `num_passengers < 1`, or `max_time < 0`.
 
 ### Programmatic statistics API
 
@@ -125,6 +126,7 @@ Log levels in use:
 ```
 
 `sim.print_statistics()` prints the same data formatted to stdout.
+`sim.save_statistics(filepath)` writes the same formatted output to a file (raises `OSError` if the path is not writable).
 
 ### I/O formats
 
