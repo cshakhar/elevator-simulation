@@ -1,4 +1,4 @@
-What if multiple hall calls come in at the same time?import csv as csv_mod
+import csv as csv_mod
 import logging
 
 import pytest

@@ -13,6 +13,7 @@ import argparse
 import logging
 import sys
 
+from elevator.log_filter import RequestIdFilter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)
@@ -74,8 +75,9 @@ def main() -> None:
     args = parse_args()
     logging.basicConfig(
         level=args.log_level,
-        format="%(levelname)s %(name)s: %(message)s",
+        format="%(levelname)s [%(request_id)s] %(name)s: %(message)s",
     )
+    logging.getLogger().handlers[0].addFilter(RequestIdFilter())
 
     express_config = None
     if args.express and args.elevators >= 2:

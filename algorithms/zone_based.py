@@ -1,9 +1,12 @@
+import logging
 import math
 from typing import List, Tuple
 
 from algorithms.base import BaseScheduler
 from algorithms.nearest_car import NearestCarScheduler
 from elevator.models import Elevator, Passenger
+
+logger = logging.getLogger("elevator.simulation")
 
 
 class ZoneBasedScheduler(BaseScheduler):
@@ -40,6 +43,10 @@ class ZoneBasedScheduler(BaseScheduler):
                 # the NearestCar fallback below.
                 if not elevator.is_full:
                     return elevator.id
+                logger.info(
+                    "Zone elevator E%d full for %r (src=%d) — falling back to NearestCar",
+                    elevator.id, passenger.id, passenger.source,
+                )
                 break  # zone elevator busy; let NearestCar decide freely
 
         return self._fallback_scheduler.assign(passenger)

@@ -21,6 +21,7 @@ immediately assigns them to a specific elevator and routes it optimally.
   - [Visualise Elevator Paths](#visualise-elevator-paths-requires-matplotlib)
 - [Input Format](#input-format)
 - [Output](#output)
+- [Logging & Traceability](#logging--traceability)
 - [Architecture](#architecture)
 - [Scheduling Algorithms](#scheduling-algorithms)
   - [Nearest Car](#nearest-car-default-recommended)
@@ -125,7 +126,7 @@ python main.py `
 | `--capacity` | `8` | Max passengers per elevator |
 | `--algorithm` | `nearest_car` | `nearest_car` / `round_robin` / `zone_based` |
 | `--express` | off | Designates the last elevator as an express car |
-| `--log-level` | `WARNING` | Logging verbosity: `DEBUG` prints per-tick state and passenger events, `INFO`/`WARNING`/`ERROR` for progressively less output |
+| `--log-level` | `WARNING` | `DEBUG` — per-tick state + every passenger event; `INFO` — simulation lifecycle, scheduler fallbacks, express config; `WARNING`/`ERROR` — anomalies only |
 
 #### Express elevator
 
@@ -219,31 +220,79 @@ time,elevator_0,elevator_1,elevator_2
 ### 2. Passenger Summary Statistics (stdout + `output/passenger_stats.log`)
 
 ```
-====================================================
+============================================================
   PASSENGER STATISTICS
-====================================================
+============================================================
   Total passengers : 10
-  Served           : 10
+  Served           : 10 (100.0%)
 
   Wait Time   (pickup - request):
-    Min     : 0
-    Max     : 15
-    Average : 4.30
+    Min     :      0 ticks
+    Max     :     79 ticks
+    Average :     22.70 ticks
+    Median  :      9.00 ticks
+    P90     :     69.10 ticks
+    P95     :     74.05 ticks
+    Std Dev :     27.88 ticks
 
   Travel Time (dropoff - pickup):
-    Min     : 9
-    Max     : 50
-    Average : 29.60
+    Min     :     25 ticks
+    ...
 
   Total Time  (dropoff - request):
-    Min     : 9
-    Max     : 63
-    Average : 33.90
+    Min     :     36 ticks
+    ...
 
-  Passengers with zero wait   : 3
-  Passengers with wait > 20   : 1
-====================================================
+  Wait Time Distribution:
+    0-5 ticks    :   4 passengers (40.0%)  ####
+    6-20 ticks   :   3 passengers (30.0%)  ###
+    21-50 ticks  :   1 passengers (10.0%)  #
+    51+ ticks    :   2 passengers (20.0%)  ##
+
+  Passengers with zero wait               :   3 (30.0%)
+  Passengers with wait > 20 ticks (long wait) :   3 (30.0%)
+
+  Per-Elevator Breakdown:
+  ------------------------------------------------------------
+  Elevator       Served     Avg Wait
+  ------------------------------------------------------------
+  E0                  4  14.25 ticks
+  E1                  4  25.50 ticks
+  E2                  2  34.00 ticks
+  ------------------------------------------------------------
+============================================================
 ```
+
+Each time block reports **min, max, average, median, P90, P95, and standard deviation** (all in ticks). The wait-time distribution gives a quick histogram view without needing a chart. The per-elevator table highlights load imbalance across the fleet.
+
+---
+
+## Logging & Traceability
+
+### Log levels
+
+| Level | What is logged |
+|---|---|
+| `ERROR` | File not found, unwritable output, bad CSV |
+| `WARNING` | Duplicate passenger IDs, unserved passengers at time-cap, conflicting express + zone config |
+| `INFO` | Simulation start/end summary, express config applied, scheduler fallback events (zone → NearestCar, all-full → least-loaded) |
+| `DEBUG` | Per-tick elevator state, and one line each when a passenger is assigned, boards, or alights |
+
+### Request tracing with `request_id`
+
+Every passenger dispatch generates a short 8-character UUID (`request_id`) that is automatically stamped on every log record for that request's lifecycle — assignment, boarding, and alighting — without needing to pass it manually to each call site.
+
+The mechanism uses Python's `contextvars.ContextVar` (`elevator/context.py`) set inside `_dispatch`, combined with a `logging.Filter` (`elevator/log_filter.py`) that injects the value into each `LogRecord` before it is formatted.
+
+Example `--log-level DEBUG` output, filtered to a single `request_id`:
+
+```
+DEBUG [3f2a1b9c] elevator.simulation: T=0: 'passenger1' assigned to E0 (src=1 dst=51)
+DEBUG [3f2a1b9c] elevator.simulation: T=1: 'passenger1' boarded E0 at floor 1 (dst=51)
+DEBUG [3f2a1b9c] elevator.simulation: T=51: 'passenger1' alighted E0 at floor 51 (wait=1 travel=50)
+```
+
+Non-request log lines (tick state, warnings) show `[-]` as the `request_id` so they are clearly distinguishable.
 
 ---
 
@@ -254,7 +303,9 @@ elevator-simulation/
 ├── elevator/
 │   ├── models.py       # Passenger, Elevator, Direction
 │   ├── simulation.py   # Tick-based simulation engine
-│   └── stats.py        # Statistics computation & printing
+│   ├── stats.py        # Statistics computation & reporting
+│   ├── context.py      # ContextVar for per-request request_id
+│   └── log_filter.py   # Logging filter that stamps request_id on every record
 ├── algorithms/
 │   ├── base.py         # Abstract BaseScheduler
 │   ├── nearest_car.py  # Primary algorithm
@@ -262,7 +313,7 @@ elevator-simulation/
 │   └── zone_based.py   # Zone-dispatch algorithm
 ├── data/               # CSV request files
 ├── tests/              # pytest test suite
-├── output/             # Generated position logs
+├── output/             # Generated position logs and stats
 ├── main.py             # CLI entry point
 ├── compare_algorithms.py  # Algorithm comparison tool
 ├── generate_data.py    # Synthetic data generator
