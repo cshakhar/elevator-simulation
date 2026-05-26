@@ -1,8 +1,10 @@
 import csv
 import logging
 import os
+import uuid
 from typing import Dict, List, Optional
 
+from elevator.context import request_id_var
 from elevator.models import Direction, Elevator, Passenger
 from elevator.stats import compute_statistics, print_statistics, save_statistics
 
@@ -55,6 +57,7 @@ class ElevatorSimulation:
                 )
                 continue
             self.elevators[elevator_id].express_floors = set(floors)
+            logger.info("E%d restricted to %d express floor(s)", elevator_id, len(floors))
 
     def _create_scheduler(self, algorithm: str):
         from algorithms.nearest_car import NearestCarScheduler
@@ -135,6 +138,10 @@ class ElevatorSimulation:
 
     def run(self, requests: List[Dict]) -> None:
         self._reset()
+        logger.info(
+            "Simulation starting: %d elevator(s), %d floors, capacity=%d, algorithm=%s, %d request(s)",
+            self.num_elevators, self.num_floors, self.capacity, self.algorithm, len(requests),
+        )
 
         requests_by_time: Dict[int, List[Dict]] = {}
         for req in sorted(requests, key=lambda r: r["time"]):
@@ -181,7 +188,13 @@ class ElevatorSimulation:
             self.current_time += 1
             self._tick_log()
 
+        served = sum(1 for p in self.passengers.values() if p.is_served)
+        total = len(self.passengers)
         unserved = [p.id for p in self.passengers.values() if not p.is_served]
+        logger.info(
+            "Simulation complete at T=%d: %d/%d passenger(s) served",
+            self.current_time, served, total,
+        )
         if unserved:
             logger.warning(
                 "Simulation ended with %d unserved passenger(s): %s. "
@@ -205,31 +218,35 @@ class ElevatorSimulation:
     def _dispatch(self, req: Dict) -> None:
         source = max(1, min(self.num_floors, int(req["source"])))
         dest = max(1, min(self.num_floors, int(req["dest"])))
-        passenger = Passenger(
-            id=req["id"],
-            request_time=req["time"],
-            source=source,
-            dest=dest,
-        )
-        self.passengers[passenger.id] = passenger
-
-        # Trivial case: same floor, no travel needed
-        if source == dest:
-            passenger.pickup_time = req["time"]
-            passenger.dropoff_time = req["time"]
-            logger.debug("T=%d: %r served instantly (src==dest=%d)", self.current_time, passenger.id, source)
-            return
-
-        elevator_id = self.scheduler.assign(passenger)
-        if elevator_id < 0 or elevator_id >= self.num_elevators:
-            raise RuntimeError(
-                f"Scheduler returned invalid elevator ID {elevator_id} "
-                f"for passenger {passenger.id!r} (simulation has {self.num_elevators} elevator(s))."
+        token = request_id_var.set(uuid.uuid4().hex[:8])
+        try:
+            passenger = Passenger(
+                id=req["id"],
+                request_time=req["time"],
+                source=source,
+                dest=dest,
             )
-        passenger.assigned_elevator = elevator_id
-        elevator = self.elevators[elevator_id]
-        elevator.add_pickup(source, passenger.id)
-        logger.debug("T=%d: %r assigned to E%d (src=%d dst=%d)", self.current_time, passenger.id, elevator_id, source, dest)
+            self.passengers[passenger.id] = passenger
+
+            # Trivial case: same floor, no travel needed
+            if source == dest:
+                passenger.pickup_time = req["time"]
+                passenger.dropoff_time = req["time"]
+                logger.debug("T=%d: %r served instantly (src==dest=%d)", self.current_time, passenger.id, source)
+                return
+
+            elevator_id = self.scheduler.assign(passenger)
+            if elevator_id < 0 or elevator_id >= self.num_elevators:
+                raise RuntimeError(
+                    f"Scheduler returned invalid elevator ID {elevator_id} "
+                    f"for passenger {passenger.id!r} (simulation has {self.num_elevators} elevator(s))."
+                )
+            passenger.assigned_elevator = elevator_id
+            elevator = self.elevators[elevator_id]
+            elevator.add_pickup(source, passenger.id)
+            logger.debug("T=%d: %r assigned to E%d (src=%d dst=%d)", self.current_time, passenger.id, elevator_id, source, dest)
+        finally:
+            request_id_var.reset(token)
 
     def _process_floor(self, elevator: Elevator) -> None:
         floor = elevator.current_floor
@@ -293,12 +310,12 @@ class ElevatorSimulation:
     # ------------------------------------------------------------------
 
     def print_statistics(self) -> None:
-        stats = compute_statistics(list(self.passengers.values()))
+        stats = compute_statistics(list(self.passengers.values()), self.num_elevators)
         print_statistics(stats)
 
     def save_statistics(self, filepath: str) -> None:
-        stats = compute_statistics(list(self.passengers.values()))
+        stats = compute_statistics(list(self.passengers.values()), self.num_elevators)
         save_statistics(stats, filepath)
 
     def get_statistics(self) -> Dict:
-        return compute_statistics(list(self.passengers.values()))
+        return compute_statistics(list(self.passengers.values()), self.num_elevators)

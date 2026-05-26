@@ -12,6 +12,7 @@ import argparse
 import logging
 import sys
 
+from elevator.log_filter import RequestIdFilter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,8 @@ def main() -> None:
         help="Logging verbosity (default: WARNING)",
     )
     args = p.parse_args()
-    logging.basicConfig(level=args.log_level, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(level=args.log_level, format="%(levelname)s [%(request_id)s] %(name)s: %(message)s")
+    logging.getLogger().handlers[0].addFilter(RequestIdFilter())
 
     print(f"Input: {args.input}  |  Elevators: {args.elevators}  "
           f"|  Floors: {args.floors}  |  Capacity: {args.capacity}\n")

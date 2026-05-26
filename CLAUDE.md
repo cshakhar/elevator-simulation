@@ -40,7 +40,9 @@ This is a **tick-based discrete-time elevator simulation** implementing a Destin
 
 - **`elevator/models.py`** — `Direction` enum, `Passenger` (lifecycle: waiting → riding → served), `Elevator` (manages stops, movement, capacity)
 - **`elevator/simulation.py`** — `ElevatorSimulation` orchestrates the main loop: log positions → dispatch new requests → process pickups/dropoffs → move elevators
-- **`elevator/stats.py`** — aggregates and prints wait/travel/total time statistics
+- **`elevator/stats.py`** — aggregates, formats, prints, and saves statistics; exposes `LONG_WAIT_THRESHOLD = 20`
+- **`elevator/context.py`** — `request_id_var: ContextVar[str]` used to propagate a per-request trace ID through all log calls without explicit passing
+- **`elevator/log_filter.py`** — `RequestIdFilter(logging.Filter)` reads `request_id_var` and stamps `record.request_id` on every `LogRecord`; must be added to the root handler after `logging.basicConfig`
 - **`algorithms/base.py`** — abstract `BaseScheduler` with `assign(passenger) → int` and `_fallback` for all-full scenarios
 - **`algorithms/nearest_car.py`** — primary algorithm; scores elevators by ETA + pending-stop penalty
 - **`algorithms/round_robin.py`** — strict rotation baseline; skips full elevators
@@ -100,11 +102,16 @@ express_config = {
 
 ### Logging
 
-All runtime diagnostics go through `logging.getLogger("elevator.simulation")`. Both `main.py` and `compare_algorithms.py` accept `--log-level DEBUG|INFO|WARNING|ERROR` (default `WARNING`) and call `logging.basicConfig` at startup.
+All runtime diagnostics go through `logging.getLogger("elevator.simulation")`. Both `main.py` and `compare_algorithms.py` accept `--log-level DEBUG|INFO|WARNING|ERROR` (default `WARNING`) and call `logging.basicConfig` at startup, then install `RequestIdFilter` on the root handler so `%(request_id)s` is available in the format string.
 
 Log levels in use:
 - `WARNING` — duplicate passenger IDs, empty CSV, invalid `express_config` IDs, unserved passengers at time-cap, combining `zone_based` algorithm with `express_config` (boundaries may conflict)
+- `INFO` — simulation start/end summary, express config applied per elevator, zone-elevator-full fallback to NearestCar, all-elevators-full fallback to least-loaded
 - `DEBUG` — per-tick elevator state, and one line each when a passenger is assigned, boards, or alights
+
+### Request tracing (`request_id`)
+
+`_dispatch` generates a `uuid4().hex[:8]` token and sets `request_id_var` for the duration of each passenger's dispatch via a `try/finally`. Every log record emitted during that scope (including inside schedulers) automatically carries the same `request_id`. Records outside any dispatch context (tick logs, warnings) show `"-"`. To trace a single passenger end-to-end, grep logs for its `request_id`.
 
 ### Error handling
 
@@ -117,16 +124,31 @@ Log levels in use:
 ```python
 {
   "total": int, "served": int, "unserved": int,
-  "wait_time":   {"min": int|None, "max": int|None, "avg": float|None, "count": int},
-  "travel_time": {"min": int|None, "max": int|None, "avg": float|None, "count": int},
-  "total_time":  {"min": int|None, "max": int|None, "avg": float|None, "count": int},
-  "zero_wait_count": int,   # passengers picked up immediately
-  "long_wait_count": int,   # passengers who waited > 20 ticks
+  "service_rate": float|None,          # served / total
+  "wait_time":   {                     # same shape for travel_time, total_time
+    "min": int|None, "max": int|None,
+    "avg": float|None, "median": float|None,
+    "p90": float|None, "p95": float|None,
+    "stddev": float|None, "count": int,
+  },
+  "travel_time": { ... },
+  "total_time":  { ... },
+  "zero_wait_count": int,              # passengers picked up immediately
+  "long_wait_count": int,              # passengers who waited > LONG_WAIT_THRESHOLD ticks
+  "long_wait_threshold": int,          # value of stats.LONG_WAIT_THRESHOLD (currently 20)
+  "wait_buckets": {                    # histogram: label -> passenger count
+    "0-5 ticks": int, "6-20 ticks": int, "21-50 ticks": int, "51+ ticks": int,
+  },
+  "per_elevator": {                    # keyed by elevator ID (int)
+    0: {"served": int, "avg_wait": float|None},
+    ...
+  },
 }
 ```
 
 `sim.print_statistics()` prints the same data formatted to stdout.
 `sim.save_statistics(filepath)` writes the same formatted output to a file (raises `OSError` if the path is not writable).
+`compute_statistics(passengers, num_elevators=None)` in `elevator/stats.py` — pass `num_elevators` to ensure all elevators appear in `per_elevator` even if one served zero passengers.
 
 ### I/O formats
 

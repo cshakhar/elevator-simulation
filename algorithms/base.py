@@ -1,7 +1,10 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import List
 
 from elevator.models import Elevator, Passenger
+
+logger = logging.getLogger("elevator.simulation")
 
 
 class BaseScheduler(ABC):
@@ -23,4 +26,9 @@ class BaseScheduler(ABC):
             if e.serves_floor(passenger.source) and e.serves_floor(passenger.dest)
         ]
         candidates = eligible or self.elevators
-        return min(candidates, key=lambda e: len(e.passengers)).id
+        chosen = min(candidates, key=lambda e: len(e.passengers))
+        logger.info(
+            "All elevators full — fallback assigned %r to E%d (least loaded, %d passengers)",
+            passenger.id, chosen.id, len(chosen.passengers),
+        )
+        return chosen.id
