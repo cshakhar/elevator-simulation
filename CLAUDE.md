@@ -18,7 +18,7 @@ python main.py --input testdata/large_requests.csv --elevators 4 --floors 80 \
 pytest tests/ -v
 
 # Run a single test
-pytest tests/test_simulation.py::TestElevator::test_move_up -v
+pytest tests/test_models.py::TestElevator::test_move_up -v
 
 # Generate synthetic request data
 python generate_data.py --passengers 200 --floors 60 --max-time 300

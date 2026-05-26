@@ -419,7 +419,7 @@ elevator-simulation/
 │   ├── test_schedulers.py       # NearestCar, RoundRobin, ZoneBased, factory (21 tests)
 │   ├── test_io.py               # CSV loading — happy path, malformed, encoding (6 tests)
 │   └── test_observability.py    # Stats, metrics, log filter/formatter, event hooks (26 tests)
-├── output/                      # Generated position logs, stats, and metrics
+├── output/                      # Generated at runtime — gitignored
 ├── main.py                      # CLI entry point
 ├── compare_algorithms.py        # Algorithm comparison tool
 ├── generate_data.py             # Synthetic data generator
