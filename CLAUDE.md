@@ -29,8 +29,11 @@ python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern re
 python compare_algorithms.py --input testdata/large_requests.csv
 
 # Visualize elevator positions over time (requires matplotlib)
-python visualize.py --input output/elevator_positions.csv
-python visualize.py --save chart.png
+python visualize.py                                         # basic interactive chart
+python visualize.py --save chart.png                        # save to file
+python visualize.py --metrics output/metrics.csv            # add queue/utilisation panel
+python visualize.py --pattern office --max-time 300         # add rush-hour phase bands
+python visualize.py --input output/positions_nearest_car.csv --metrics output/metrics.csv --pattern office --max-time 300 --save chart.png
 ```
 
 **Dependencies:** Python 3.8+ only for the core simulation; `pytest>=7.0` for tests; `matplotlib>=3.5` for visualization.
