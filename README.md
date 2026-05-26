@@ -212,10 +212,11 @@ pytest tests/test_simulation.py::TestSimulation::test_single_passenger_zero_wait
 
 ```bash
 # Basic interactive chart
-python main.py && python visualize.py
+python main.py
+python visualize.py
 
 # Save to file
-python visualize.py --save chart.png
+python visualize.py --save output/chart.png
 
 # Add queue-depth / fleet-utilisation panel (requires --metrics-output from main.py)
 python main.py --metrics-output output/metrics.csv
@@ -230,7 +231,7 @@ python visualize.py \
   --metrics output/metrics.csv \
   --pattern office \
   --max-time 300 \
-  --save chart.png
+  --save output/chart.png
 ```
 
 | Flag | Default | Description |
