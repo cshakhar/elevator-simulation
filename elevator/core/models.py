@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Set
 
-from elevator.constants import DEFAULT_START_FLOOR, STOP_DROPOFF, STOP_PICKUP
+from elevator.core.constants import DEFAULT_START_FLOOR, STOP_DROPOFF, STOP_PICKUP
 
 
 class Direction(Enum):

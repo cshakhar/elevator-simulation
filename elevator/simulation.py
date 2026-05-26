@@ -5,7 +5,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from algorithms.factory import create_scheduler
-from elevator.constants import (
+from elevator.core.constants import (
     DEFAULT_ALGORITHM,
     DEFAULT_CAPACITY,
     DEFAULT_NUM_ELEVATORS,
@@ -13,12 +13,12 @@ from elevator.constants import (
     STOP_DROPOFF,
     STOP_PICKUP,
 )
-from elevator.context import request_id_var
-from elevator.events import SimulationEventListener
+from elevator.core.models import Elevator, Passenger
 from elevator.io import load_requests as _load_requests
-from elevator.metrics import SimulationMetrics
-from elevator.models import Elevator, Passenger
-from elevator.stats import compute_statistics, print_statistics, save_statistics
+from elevator.observability.context import request_id_var
+from elevator.observability.events import SimulationEventListener
+from elevator.observability.metrics import SimulationMetrics
+from elevator.observability.stats import compute_statistics, print_statistics, save_statistics
 
 logger = logging.getLogger(__name__)
 

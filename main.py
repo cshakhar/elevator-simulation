@@ -15,7 +15,7 @@ import argparse
 import logging
 import sys
 
-from elevator.constants import (
+from elevator.core.constants import (
     ALGORITHMS,
     DEFAULT_ALGORITHM,
     DEFAULT_CAPACITY,
@@ -29,8 +29,8 @@ from elevator.constants import (
     EXPRESS_SKIP_HIGH,
 )
 from elevator.io import load_requests
-from elevator.log_filter import RequestIdFilter
-from elevator.log_formatter import JsonFormatter
+from elevator.observability.filter import RequestIdFilter
+from elevator.observability.formatter import JsonFormatter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)

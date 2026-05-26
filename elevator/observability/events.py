@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
-    from elevator.models import Elevator, Passenger
+    from elevator.core.models import Elevator, Passenger
 
 
 class SimulationEventListener:

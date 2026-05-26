@@ -3,8 +3,8 @@ import json
 import logging
 
 import pytest
+from elevator.core.models import Direction, Elevator, Passenger
 from elevator.io import load_requests
-from elevator.models import Direction, Elevator, Passenger
 from elevator.simulation import ElevatorSimulation
 
 
@@ -575,22 +575,22 @@ class TestStats:
         return p
 
     def test_percentile_single_value(self):
-        from elevator.stats import _percentile
+        from elevator.observability.stats import _percentile
         assert _percentile([10], 50) == 10.0
         assert _percentile([10], 90) == 10.0
 
     def test_percentile_interpolates(self):
-        from elevator.stats import _percentile
+        from elevator.observability.stats import _percentile
         # [0, 10]: idx=0.5 → 0 + 10*0.5 = 5.0
         assert _percentile([0, 10], 50) == 5.0
 
     def test_percentile_exact_index(self):
-        from elevator.stats import _percentile
+        from elevator.observability.stats import _percentile
         # [1, 5, 9]: idx for p50 = 1.0 → sorted[1] = 5
         assert _percentile([1, 5, 9], 50) == 5.0
 
     def test_summarize_single_value(self):
-        from elevator.stats import _summarize
+        from elevator.observability.stats import _summarize
         s = _summarize([8])
         assert s["min"] == 8
         assert s["max"] == 8
@@ -599,7 +599,7 @@ class TestStats:
         assert s["count"] == 1
 
     def test_summarize_multiple_values(self):
-        from elevator.stats import _summarize
+        from elevator.observability.stats import _summarize
         # Population stddev of [2,4,4,4,5,5,7,9] = 2.0, avg = 5.0
         s = _summarize([2, 4, 4, 4, 5, 5, 7, 9])
         assert s["min"] == 2
@@ -609,7 +609,7 @@ class TestStats:
         assert s["count"] == 8
 
     def test_summarize_empty_returns_none_fields(self):
-        from elevator.stats import _summarize
+        from elevator.observability.stats import _summarize
         s = _summarize([])
         assert s["min"] is None
         assert s["max"] is None
@@ -617,7 +617,7 @@ class TestStats:
         assert s["count"] == 0
 
     def test_compute_statistics_unserved(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         served = self._passenger("p1", 0, 0, 4)
         unserved = Passenger("p2", 0, 1, 5)  # no pickup/dropoff
         stats = compute_statistics([served, unserved])
@@ -627,25 +627,25 @@ class TestStats:
         assert abs(stats["service_rate"] - 0.5) < 1e-9
 
     def test_compute_statistics_service_rate_none_when_empty(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         stats = compute_statistics([])
         assert stats["service_rate"] is None
         assert stats["total"] == 0
 
     def test_compute_statistics_zero_wait_count(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         p = self._passenger("p1", 0, 0, 4)  # wait_time = 0
         stats = compute_statistics([p])
         assert stats["zero_wait_count"] == 1
 
     def test_compute_statistics_long_wait_count(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         p = self._passenger("p1", 0, 25, 30)  # wait_time = 25 > threshold 20
         stats = compute_statistics([p])
         assert stats["long_wait_count"] == 1
 
     def test_compute_statistics_wait_buckets(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         p1 = self._passenger("p1", 0, 3, 8, elevator_id=0)    # wait=3  → 0-5
         p2 = self._passenger("p2", 0, 10, 15, elevator_id=0)  # wait=10 → 6-20
         p3 = self._passenger("p3", 0, 30, 35, elevator_id=0)  # wait=30 → 21-50
@@ -657,7 +657,7 @@ class TestStats:
         assert stats["wait_buckets"]["51+ ticks"] == 1
 
     def test_compute_statistics_per_elevator_includes_zero_served(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         p = self._passenger("p1", 0, 0, 4, elevator_id=0)
         # Pass num_elevators=2 so elevator 1 (zero served) still appears
         stats = compute_statistics([p], num_elevators=2)
@@ -667,14 +667,14 @@ class TestStats:
         assert stats["per_elevator"][1]["avg_wait"] is None
 
     def test_compute_statistics_per_elevator_auto_detect(self):
-        from elevator.stats import compute_statistics
+        from elevator.observability.stats import compute_statistics
         p = self._passenger("p1", 0, 0, 5, elevator_id=2)
         stats = compute_statistics([p])
         assert 2 in stats["per_elevator"]
         assert stats["per_elevator"][2]["served"] == 1
 
     def test_save_statistics_writes_file(self, tmp_path):
-        from elevator.stats import compute_statistics, save_statistics
+        from elevator.observability.stats import compute_statistics, save_statistics
         p = self._passenger("p1", 0, 1, 5)
         stats = compute_statistics([p])
         out = str(tmp_path / "stats.log")
@@ -684,7 +684,7 @@ class TestStats:
         assert "Served" in content
 
     def test_format_statistics_shows_unserved_warning(self):
-        from elevator.stats import compute_statistics, _format_statistics
+        from elevator.observability.stats import compute_statistics, _format_statistics
         served = self._passenger("p1", 0, 0, 4)
         unserved = Passenger("p2", 0, 1, 5)
         stats = compute_statistics([served, unserved])
@@ -698,7 +698,7 @@ class TestStats:
 
 class TestMetrics:
     def test_tick_accumulates_counters(self):
-        from elevator.metrics import SimulationMetrics
+        from elevator.observability.metrics import SimulationMetrics
         m = SimulationMetrics()
         m.begin_tick(0)
         m.record_assignment()
@@ -716,7 +716,7 @@ class TestMetrics:
         assert t.dropoffs == 1
 
     def test_elevator_utilisation(self):
-        from elevator.metrics import SimulationMetrics
+        from elevator.observability.metrics import SimulationMetrics
         m = SimulationMetrics()
         m.begin_tick(0)
         e0 = Elevator(0, 10, 4)
@@ -727,7 +727,7 @@ class TestMetrics:
         assert abs(m.ticks[0].elevator_utilisation - 0.25) < 1e-4
 
     def test_queue_depth_counts_waiting_only(self):
-        from elevator.metrics import SimulationMetrics
+        from elevator.observability.metrics import SimulationMetrics
         m = SimulationMetrics()
         m.begin_tick(0)
         waiting = Passenger("p1", 0, 1, 5)          # no pickup_time → is_waiting
@@ -738,7 +738,7 @@ class TestMetrics:
         assert m.ticks[0].queue_depth == 1
 
     def test_record_before_begin_tick_is_noop(self):
-        from elevator.metrics import SimulationMetrics
+        from elevator.observability.metrics import SimulationMetrics
         m = SimulationMetrics()
         m.record_assignment()   # no active tick — must not raise
         m.record_pickup()
@@ -746,7 +746,7 @@ class TestMetrics:
         assert m.ticks == []
 
     def test_save_metrics_csv(self, tmp_path):
-        from elevator.metrics import SimulationMetrics
+        from elevator.observability.metrics import SimulationMetrics
         m = SimulationMetrics()
         e = Elevator(0, 10, 8)
         m.begin_tick(0)
@@ -810,8 +810,8 @@ class TestFactory:
 
 class TestLogFilter:
     def test_stamps_request_id_from_context(self):
-        from elevator.context import request_id_var
-        from elevator.log_filter import RequestIdFilter
+        from elevator.observability.context import request_id_var
+        from elevator.observability.filter import RequestIdFilter
         token = request_id_var.set("abc123")
         try:
             record = logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None)
@@ -821,20 +821,20 @@ class TestLogFilter:
             request_id_var.reset(token)
 
     def test_default_dash_when_no_context(self):
-        from elevator.log_filter import RequestIdFilter
+        from elevator.observability.filter import RequestIdFilter
         record = logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None)
         RequestIdFilter().filter(record)
         assert record.request_id == "-"
 
     def test_filter_always_returns_true(self):
-        from elevator.log_filter import RequestIdFilter
+        from elevator.observability.filter import RequestIdFilter
         record = logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None)
         assert RequestIdFilter().filter(record) is True
 
 
 class TestJsonFormatter:
     def test_format_produces_valid_json_with_expected_keys(self):
-        from elevator.log_formatter import JsonFormatter
+        from elevator.observability.formatter import JsonFormatter
         record = logging.LogRecord("mylogger", logging.WARNING, "", 0, "hello", (), None)
         record.request_id = "xyz"
         data = json.loads(JsonFormatter().format(record))
@@ -845,7 +845,7 @@ class TestJsonFormatter:
         assert "ts" in data
 
     def test_format_missing_request_id_defaults_to_dash(self):
-        from elevator.log_formatter import JsonFormatter
+        from elevator.observability.formatter import JsonFormatter
         record = logging.LogRecord("mylogger", logging.INFO, "", 0, "msg", (), None)
         data = json.loads(JsonFormatter().format(record))
         assert data["request_id"] == "-"
@@ -857,7 +857,7 @@ class TestJsonFormatter:
 
 class TestEventListeners:
     def test_all_hooks_fire_with_correct_args(self):
-        from elevator.events import SimulationEventListener
+        from elevator.observability.events import SimulationEventListener
         events = []
 
         class Recorder(SimulationEventListener):

@@ -1,6 +1,6 @@
 import logging
 
-from elevator.constants import SIMULATION_LOGGER_NAME
+from elevator.core.constants import SIMULATION_LOGGER_NAME
 
 logger = logging.getLogger(SIMULATION_LOGGER_NAME)
 

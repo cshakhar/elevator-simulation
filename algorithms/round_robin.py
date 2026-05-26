@@ -1,5 +1,5 @@
 from algorithms.base import BaseScheduler
-from elevator.models import Passenger
+from elevator.core.models import Passenger
 
 
 class RoundRobinScheduler(BaseScheduler):

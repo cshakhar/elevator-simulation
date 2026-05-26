@@ -1,7 +1,7 @@
 import math
 from typing import Dict, List, Optional
 
-from elevator.models import Passenger
+from elevator.core.models import Passenger
 
 LONG_WAIT_THRESHOLD = 20
 _WAIT_BUCKETS: List[tuple] = [(0, 5), (6, 20), (21, 50), (51, None)]

@@ -2,9 +2,10 @@ import csv
 import logging
 from typing import Dict, List
 
-from elevator.constants import CSV_COLUMNS
+from elevator.core.constants import CSV_COLUMNS
 
-logger = logging.getLogger(__name__)
+# Explicit logger name keeps it stable regardless of module path.
+logger = logging.getLogger("elevator.io")
 
 
 def load_requests(filepath: str) -> List[Dict]:

@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 
-from elevator.constants import CSV_COLUMNS, DEFAULT_GENERATED_FILE, DEFAULT_NUM_FLOORS
+from elevator.core.constants import CSV_COLUMNS, DEFAULT_GENERATED_FILE, DEFAULT_NUM_FLOORS
 
 _DEFAULT_NUM_PASSENGERS = 100
 _DEFAULT_MAX_TIME = 200
