@@ -32,14 +32,12 @@ def compute_statistics(passengers: List[Passenger]) -> Dict:
     }
 
 
-def print_statistics(stats: Dict) -> None:
-    print("\n" + "=" * 52)
-    print("  PASSENGER STATISTICS")
-    print("=" * 52)
-    print(f"  Total passengers : {stats['total']}")
-    print(f"  Served           : {stats['served']}")
+def _format_statistics(stats: Dict) -> str:
+    lines = ["\n" + "=" * 52, "  PASSENGER STATISTICS", "=" * 52]
+    lines.append(f"  Total passengers : {stats['total']}")
+    lines.append(f"  Served           : {stats['served']}")
     if stats["unserved"]:
-        print(f"  Unserved         : {stats['unserved']}  *** WARNING ***")
+        lines.append(f"  Unserved         : {stats['unserved']}  *** WARNING ***")
 
     for label, key in [
         ("Wait Time   (pickup - request)", "wait_time"),
@@ -47,17 +45,30 @@ def print_statistics(stats: Dict) -> None:
         ("Total Time  (dropoff - request)", "total_time"),
     ]:
         s = stats[key]
-        print(f"\n  {label}:")
+        lines.append(f"\n  {label}:")
         if s["count"]:
-            print(f"    Min     : {s['min']}")
-            print(f"    Max     : {s['max']}")
-            print(f"    Average : {s['avg']:.2f}")
+            lines.append(f"    Min     : {s['min']}")
+            lines.append(f"    Max     : {s['max']}")
+            lines.append(f"    Average : {s['avg']:.2f}")
         else:
-            print("    No data")
+            lines.append("    No data")
 
     if stats["served"]:
-        print(f"\n  Passengers with zero wait   : {stats['zero_wait_count']}")
+        lines.append(f"\n  Passengers with zero wait   : {stats['zero_wait_count']}")
         if stats["long_wait_count"]:
-            print(f"  Passengers with wait > 20   : {stats['long_wait_count']}")
+            lines.append(f"  Passengers with wait > 20   : {stats['long_wait_count']}")
 
-    print("=" * 52)
+    lines.append("=" * 52)
+    return "\n".join(lines)
+
+
+def print_statistics(stats: Dict) -> None:
+    print(_format_statistics(stats))
+
+
+def save_statistics(stats: Dict, filepath: str) -> None:
+    import os
+    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(_format_statistics(stats))
+        f.write("\n")

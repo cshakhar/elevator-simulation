@@ -119,6 +119,7 @@ python main.py `
 |------|---------|-------------|
 | `--input` | `data/sample_requests.csv` | CSV request file |
 | `--output` | `output/elevator_positions.csv` | Position log output |
+| `--stats-output` | `output/passenger_stats.log` | Passenger statistics log output |
 | `--elevators` | `3` | Number of elevators (1–10) |
 | `--floors` | `60` | Number of floors |
 | `--capacity` | `8` | Max passengers per elevator |
@@ -215,7 +216,7 @@ time,elevator_0,elevator_1,elevator_2
 …
 ```
 
-### 2. Passenger Summary Statistics (printed to stdout)
+### 2. Passenger Summary Statistics (stdout + `output/passenger_stats.log`)
 
 ```
 ====================================================

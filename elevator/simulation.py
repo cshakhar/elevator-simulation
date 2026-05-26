@@ -4,7 +4,7 @@ import os
 from typing import Dict, List, Optional
 
 from elevator.models import Direction, Elevator, Passenger
-from elevator.stats import compute_statistics, print_statistics
+from elevator.stats import compute_statistics, print_statistics, save_statistics
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +295,10 @@ class ElevatorSimulation:
     def print_statistics(self) -> None:
         stats = compute_statistics(list(self.passengers.values()))
         print_statistics(stats)
+
+    def save_statistics(self, filepath: str) -> None:
+        stats = compute_statistics(list(self.passengers.values()))
+        save_statistics(stats, filepath)
 
     def get_statistics(self) -> Dict:
         return compute_statistics(list(self.passengers.values()))
