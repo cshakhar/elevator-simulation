@@ -20,6 +20,7 @@ class Passenger:
     assigned_elevator: Optional[int] = None
     pickup_time: Optional[int] = None
     dropoff_time: Optional[int] = None
+    request_id: Optional[str] = None  # trace token linking all log lines for this passenger
 
     @property
     def travel_direction(self) -> Direction:
