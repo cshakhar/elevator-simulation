@@ -546,4 +546,4 @@ immediately used for boarding passengers.
 
 ## Time Spent
 
-Approximately **4–5 hours** including design, implementation, testing, and documentation.
+Approximately **5-6 hours** including design, implementation, testing, and documentation.
