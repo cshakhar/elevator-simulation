@@ -1,7 +1,7 @@
 from typing import List
 
 from algorithms.base import BaseScheduler
-from elevator.models import Elevator, Passenger
+from elevator.core.models import Elevator, Passenger
 
 _STOP_PENALTY = 0.01  # tiebreak: prefer elevators with fewer pending stops
 

@@ -15,7 +15,7 @@ import argparse
 import logging
 import sys
 
-from elevator.constants import (
+from elevator.core.constants import (
     ALGORITHMS,
     DEFAULT_ALGORITHM,
     DEFAULT_CAPACITY,
@@ -28,8 +28,9 @@ from elevator.constants import (
     EXPRESS_LOBBY_FLOOR,
     EXPRESS_SKIP_HIGH,
 )
-from elevator.log_filter import RequestIdFilter
-from elevator.log_formatter import JsonFormatter
+from elevator.io import load_requests
+from elevator.observability.filter import RequestIdFilter
+from elevator.observability.formatter import JsonFormatter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ def main() -> None:
 
     print(f"Loading requests from: {args.input}")
     try:
-        requests = sim.load_requests(args.input)
+        requests = load_requests(args.input)
     except FileNotFoundError:
         logger.error("input file not found: %s", args.input)
         sys.exit(1)

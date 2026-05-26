@@ -1,6 +1,6 @@
 import logging
 
-from elevator.context import request_id_var
+from elevator.observability.context import request_id_var
 
 
 class RequestIdFilter(logging.Filter):
