@@ -1,12 +1,11 @@
-
 import csv
 import logging
 import os
 import uuid
 from typing import Dict, List, Optional
 
+from algorithms.factory import create_scheduler
 from elevator.constants import (
-    CSV_COLUMNS,
     DEFAULT_ALGORITHM,
     DEFAULT_CAPACITY,
     DEFAULT_NUM_ELEVATORS,
@@ -16,8 +15,9 @@ from elevator.constants import (
 )
 from elevator.context import request_id_var
 from elevator.events import SimulationEventListener
+from elevator.io import load_requests as _load_requests
 from elevator.metrics import SimulationMetrics
-from elevator.models import Direction, Elevator, Passenger
+from elevator.models import Elevator, Passenger
 from elevator.stats import compute_statistics, print_statistics, save_statistics
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class ElevatorSimulation:
         if express_config:
             self._apply_express_config(express_config)
 
-        self.scheduler = self._create_scheduler(algorithm)
+        self.scheduler = create_scheduler(algorithm, self.elevators, self.num_floors)
         self.passengers: Dict[str, Passenger] = {}
         self.position_log: List[Dict] = []
 
@@ -74,65 +74,12 @@ class ElevatorSimulation:
             self.elevators[elevator_id].express_floors = set(floors)
             logger.info("E%d restricted to %d express floor(s)", elevator_id, len(floors))
 
-    def _create_scheduler(self, algorithm: str):
-        from algorithms.nearest_car import NearestCarScheduler
-        from algorithms.round_robin import RoundRobinScheduler
-        from algorithms.zone_based import ZoneBasedScheduler
-
-        mapping = {
-            "nearest_car": NearestCarScheduler,
-            "round_robin": RoundRobinScheduler,
-            "zone_based": ZoneBasedScheduler,
-        }
-        if algorithm not in mapping:
-            raise ValueError(
-                f"Unknown algorithm {algorithm!r}. "
-                f"Choose from: {list(mapping)}"
-            )
-        if algorithm == "zone_based":
-            if any(e.express_floors is not None for e in self.elevators):
-                logger.warning(
-                    "Combining 'zone_based' algorithm with express_config may cause "
-                    "passengers to be unroutable if zone and express boundaries conflict."
-                )
-            return ZoneBasedScheduler(self.elevators, self.num_floors)
-        return mapping[algorithm](self.elevators)
-
     # ------------------------------------------------------------------
     # I/O
     # ------------------------------------------------------------------
 
     def load_requests(self, filepath: str) -> List[Dict]:
-        requests = []
-        required_columns = set(CSV_COLUMNS)
-        try:
-            with open(filepath, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                if reader.fieldnames is not None:
-                    missing_cols = required_columns - set(reader.fieldnames)
-                    if missing_cols:
-                        raise ValueError(
-                            f"CSV {filepath!r} is missing required columns: {sorted(missing_cols)}"
-                        )
-                for line_num, row in enumerate(reader, start=2):
-                    try:
-                        requests.append(
-                            {
-                                "time": int(row["time"]),
-                                "id": row["id"].strip(),
-                                "source": int(row["source"]),
-                                "dest": int(row["dest"]),
-                            }
-                        )
-                    except (KeyError, ValueError) as exc:
-                        raise ValueError(
-                            f"CSV {filepath!r} line {line_num}: could not parse row {dict(row)} — {exc}"
-                        ) from exc
-        except UnicodeDecodeError as exc:
-            raise ValueError(f"CSV {filepath!r} is not valid UTF-8: {exc}") from exc
-        if not requests:
-            logger.warning("No requests found in %r; simulation will be empty.", filepath)
-        return requests
+        return _load_requests(filepath)
 
     def save_position_log(self, filepath: str) -> None:
         if not self.position_log:
@@ -241,7 +188,7 @@ class ElevatorSimulation:
         for e in self.elevators:
             e.reset()
         # Rebuild scheduler so round-robin counter resets, etc.
-        self.scheduler = self._create_scheduler(self.algorithm)
+        self.scheduler = create_scheduler(self.algorithm, self.elevators, self.num_floors)
 
     # ------------------------------------------------------------------
     # Per-tick helpers

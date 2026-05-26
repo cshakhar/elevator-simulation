@@ -2,6 +2,7 @@ import csv as csv_mod
 import logging
 
 import pytest
+from elevator.io import load_requests
 from elevator.models import Direction, Elevator, Passenger
 from elevator.simulation import ElevatorSimulation
 
@@ -515,22 +516,19 @@ class TestErrorHandling:
     def test_load_requests_missing_columns(self, tmp_path):
         f = tmp_path / "bad.csv"
         f.write_text("time,id\n0,p1\n")
-        sim = ElevatorSimulation()
         with pytest.raises(ValueError, match="missing required columns"):
-            sim.load_requests(str(f))
+            load_requests(str(f))
 
     def test_load_requests_malformed_row(self, tmp_path):
         f = tmp_path / "bad.csv"
         f.write_text("time,id,source,dest\n0,p1,abc,10\n")
-        sim = ElevatorSimulation()
         with pytest.raises(ValueError, match="line 2"):
-            sim.load_requests(str(f))
+            load_requests(str(f))
 
     def test_load_requests_empty_csv_warns(self, tmp_path, caplog):
         f = tmp_path / "empty.csv"
         f.write_text("time,id,source,dest\n")
-        sim = ElevatorSimulation()
-        with caplog.at_level(logging.WARNING, logger="elevator.simulation"):
-            result = sim.load_requests(str(f))
+        with caplog.at_level(logging.WARNING, logger="elevator.io"):
+            result = load_requests(str(f))
         assert "No requests found" in caplog.text
         assert result == []
