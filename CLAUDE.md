@@ -11,7 +11,8 @@ python main.py
 # Run with full options
 python main.py --input testdata/large_requests.csv --elevators 4 --floors 80 \
                --capacity 10 --algorithm zone_based --express --log-level DEBUG \
-               --log-format json --stats-output output/passenger_stats.log \
+               --log-format json --output output/positions.csv \
+               --stats-output output/passenger_stats.log \
                --metrics-output output/metrics.csv
 
 # Run all tests
@@ -21,12 +22,16 @@ pytest tests/ -v
 pytest tests/test_models.py::TestElevator::test_move_up -v
 
 # Generate synthetic request data (uniform / office / residential pattern)
+# --seed for reproducibility; --output overrides default testdata/generated_requests.csv
 python generate_data.py --passengers 200 --floors 60 --max-time 300
 python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern office
 python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern residential
+python generate_data.py --passengers 200 --floors 60 --max-time 300 --seed 42 --output testdata/my_run.csv
 
 # Compare all three scheduling algorithms side-by-side
+# also accepts --elevators, --floors, --capacity, --log-level, --log-format
 python compare_algorithms.py --input testdata/large_requests.csv
+python compare_algorithms.py --input testdata/large_requests.csv --elevators 4 --floors 80
 
 # Visualize elevator positions over time (requires matplotlib)
 python visualize.py                                         # basic interactive chart
@@ -70,6 +75,10 @@ algorithms/
 ```
 
 Each subpackage `__init__.py` re-exports its public symbols. External code imports from `elevator.core.constants`, `elevator.observability.*`, etc.; `from elevator import ElevatorSimulation` also works.
+
+### CSV input format
+
+Request files must be UTF-8 with headers `time,id,source,dest` (all required). `time` and `source`/`dest` are integers; `id` is a string. Floors are clamped to `[1, num_floors]` at dispatch time, so out-of-range values are silently corrected rather than rejected.
 
 ### Simulation loop (online, no peek-ahead)
 
@@ -124,6 +133,17 @@ Event hooks: pass `listeners=[...]` to `ElevatorSimulation(...)`. Available hook
 ### Error handling
 
 `ElevatorSimulation.__init__` raises `ValueError` for `num_elevators < 1`, `num_floors < 2`, `capacity < 1`, or an unknown algorithm. `load_requests` raises `ValueError` for missing columns, unparseable rows (with filename + line number), or non-UTF-8 files. Save methods raise `OSError` on unwritable paths.
+
+### Programmatic usage notes
+
+`run()` calls `_reset()` internally before executing, so calling `sim.run(requests)` multiple times on the same instance is safe — each call starts from a clean slate with all elevators back at floor 1.
+
+`express_config` is a `dict[elevator_id, list[int]]` of floors that elevator may serve:
+```python
+# Elevator 0 serves only lobby (1) and floors 11+; skips 2–10
+express_config = {0: [1] + list(range(11, num_floors + 1))}
+sim = ElevatorSimulation(express_config=express_config)
+```
 
 ### Programmatic statistics API
 
