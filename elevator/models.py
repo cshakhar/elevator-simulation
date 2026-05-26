@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Set
 
+from elevator.constants import DEFAULT_START_FLOOR, STOP_DROPOFF, STOP_PICKUP
+
 
 class Direction(Enum):
     UP = "UP"
@@ -61,7 +63,7 @@ class Elevator:
         num_floors: int,
         capacity: int,
         express_floors: Optional[Set[int]] = None,
-        start_floor: int = 1,
+        start_floor: int = DEFAULT_START_FLOOR,
     ):
         self.id = elevator_id
         self.current_floor = start_floor
@@ -98,20 +100,20 @@ class Elevator:
 
     def add_pickup(self, floor: int, passenger_id: str) -> None:
         if floor not in self.stops:
-            self.stops[floor] = {"pickup": [], "dropoff": []}
-        if passenger_id not in self.stops[floor]["pickup"]:
-            self.stops[floor]["pickup"].append(passenger_id)
+            self.stops[floor] = {STOP_PICKUP: [], STOP_DROPOFF: []}
+        if passenger_id not in self.stops[floor][STOP_PICKUP]:
+            self.stops[floor][STOP_PICKUP].append(passenger_id)
 
     def add_dropoff(self, floor: int, passenger_id: str) -> None:
         if floor not in self.stops:
-            self.stops[floor] = {"pickup": [], "dropoff": []}
-        if passenger_id not in self.stops[floor]["dropoff"]:
-            self.stops[floor]["dropoff"].append(passenger_id)
+            self.stops[floor] = {STOP_PICKUP: [], STOP_DROPOFF: []}
+        if passenger_id not in self.stops[floor][STOP_DROPOFF]:
+            self.stops[floor][STOP_DROPOFF].append(passenger_id)
 
     def remove_stop_if_empty(self, floor: int) -> None:
         if floor in self.stops:
             s = self.stops[floor]
-            if not s["pickup"] and not s["dropoff"]:
+            if not s[STOP_PICKUP] and not s[STOP_DROPOFF]:
                 del self.stops[floor]
 
     def get_next_stop(self) -> Optional[int]:
@@ -190,7 +192,7 @@ class Elevator:
             return (self.current_floor - lowest) + (source - lowest)
 
     def reset(self) -> None:
-        self.current_floor = 1
+        self.current_floor = DEFAULT_START_FLOOR
         self.direction = Direction.IDLE
         self.passengers.clear()
         self.stops.clear()

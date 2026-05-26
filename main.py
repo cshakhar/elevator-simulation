@@ -13,6 +13,18 @@ import argparse
 import logging
 import sys
 
+from elevator.constants import (
+    ALGORITHMS,
+    DEFAULT_ALGORITHM,
+    DEFAULT_CAPACITY,
+    DEFAULT_INPUT_FILE,
+    DEFAULT_NUM_ELEVATORS,
+    DEFAULT_NUM_FLOORS,
+    DEFAULT_OUTPUT_POSITIONS,
+    DEFAULT_OUTPUT_STATS,
+    EXPRESS_LOBBY_FLOOR,
+    EXPRESS_SKIP_HIGH,
+)
 from elevator.log_filter import RequestIdFilter
 from elevator.simulation import ElevatorSimulation
 
@@ -26,40 +38,40 @@ def parse_args() -> argparse.Namespace:
         epilog=__doc__,
     )
     p.add_argument(
-        "--input", default="data/sample_requests.csv",
-        help="CSV request file  (default: data/sample_requests.csv)",
+        "--input", default=DEFAULT_INPUT_FILE,
+        help=f"CSV request file  (default: {DEFAULT_INPUT_FILE})",
     )
     p.add_argument(
-        "--output", default="output/elevator_positions.csv",
-        help="Position log output path  (default: output/elevator_positions.csv)",
+        "--output", default=DEFAULT_OUTPUT_POSITIONS,
+        help=f"Position log output path  (default: {DEFAULT_OUTPUT_POSITIONS})",
     )
     p.add_argument(
-        "--stats-output", default="output/passenger_stats.log",
-        help="Passenger statistics log path  (default: output/passenger_stats.log)",
+        "--stats-output", default=DEFAULT_OUTPUT_STATS,
+        help=f"Passenger statistics log path  (default: {DEFAULT_OUTPUT_STATS})",
     )
     p.add_argument(
-        "--elevators", type=int, default=3,
-        help="Number of elevators  (default: 3)",
+        "--elevators", type=int, default=DEFAULT_NUM_ELEVATORS,
+        help=f"Number of elevators  (default: {DEFAULT_NUM_ELEVATORS})",
     )
     p.add_argument(
-        "--floors", type=int, default=60,
-        help="Number of floors  (default: 60)",
+        "--floors", type=int, default=DEFAULT_NUM_FLOORS,
+        help=f"Number of floors  (default: {DEFAULT_NUM_FLOORS})",
     )
     p.add_argument(
-        "--capacity", type=int, default=8,
-        help="Max passengers per elevator  (default: 8)",
+        "--capacity", type=int, default=DEFAULT_CAPACITY,
+        help=f"Max passengers per elevator  (default: {DEFAULT_CAPACITY})",
     )
     p.add_argument(
         "--algorithm",
-        choices=["nearest_car", "round_robin", "zone_based"],
-        default="nearest_car",
-        help="Scheduling algorithm  (default: nearest_car)",
+        choices=ALGORITHMS,
+        default=DEFAULT_ALGORITHM,
+        help=f"Scheduling algorithm  (default: {DEFAULT_ALGORITHM})",
     )
     p.add_argument(
         "--express", action="store_true",
         help=(
-            "Enable express mode: last elevator skips floors 2–10 "
-            "(serves lobby floor 1 and floors 11+)"
+            f"Enable express mode: last elevator skips floors {EXPRESS_LOBBY_FLOOR + 1}–{EXPRESS_SKIP_HIGH} "
+            f"(serves lobby floor {EXPRESS_LOBBY_FLOOR} and floors {EXPRESS_SKIP_HIGH + 1}+)"
         ),
     )
     p.add_argument(
@@ -82,9 +94,9 @@ def main() -> None:
     express_config = None
     if args.express and args.elevators >= 2:
         last_id = args.elevators - 1
-        express_floors = {1} | set(range(11, args.floors + 1))
+        express_floors = {EXPRESS_LOBBY_FLOOR} | set(range(EXPRESS_SKIP_HIGH + 1, args.floors + 1))
         express_config = {last_id: list(express_floors)}
-        print(f"  Express mode enabled: elevator {last_id} skips floors 2–10")
+        print(f"  Express mode enabled: elevator {last_id} skips floors {EXPRESS_LOBBY_FLOOR + 1}–{EXPRESS_SKIP_HIGH}")
 
     try:
         sim = ElevatorSimulation(

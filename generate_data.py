@@ -6,13 +6,19 @@ import argparse
 import os
 import sys
 
+from elevator.constants import CSV_COLUMNS, DEFAULT_GENERATED_FILE, DEFAULT_NUM_FLOORS
+
+_DEFAULT_NUM_PASSENGERS = 100
+_DEFAULT_MAX_TIME = 200
+_DEFAULT_SEED = 42
+
 
 def generate(
-    num_passengers: int = 100,
-    num_floors: int = 60,
-    max_time: int = 200,
-    seed: int = 42,
-    output: str = "data/generated_requests.csv",
+    num_passengers: int = _DEFAULT_NUM_PASSENGERS,
+    num_floors: int = DEFAULT_NUM_FLOORS,
+    max_time: int = _DEFAULT_MAX_TIME,
+    seed: int = _DEFAULT_SEED,
+    output: str = DEFAULT_GENERATED_FILE,
 ) -> None:
     if num_floors < 2:
         raise ValueError(f"num_floors must be >= 2, got {num_floors}")
@@ -34,7 +40,7 @@ def generate(
     rows.sort(key=lambda r: r["time"])
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     with open(output, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["time", "id", "source", "dest"])
+        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
         writer.writeheader()
         writer.writerows(rows)
     print(f"Generated {num_passengers} requests → {output}")
@@ -42,11 +48,11 @@ def generate(
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Generate synthetic elevator requests")
-    p.add_argument("--passengers", type=int, default=100)
-    p.add_argument("--floors", type=int, default=60)
-    p.add_argument("--max-time", type=int, default=200)
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--output", default="data/generated_requests.csv")
+    p.add_argument("--passengers", type=int, default=_DEFAULT_NUM_PASSENGERS)
+    p.add_argument("--floors", type=int, default=DEFAULT_NUM_FLOORS)
+    p.add_argument("--max-time", type=int, default=_DEFAULT_MAX_TIME)
+    p.add_argument("--seed", type=int, default=_DEFAULT_SEED)
+    p.add_argument("--output", default=DEFAULT_GENERATED_FILE)
     args = p.parse_args()
     try:
         generate(args.passengers, args.floors, args.max_time, args.seed, args.output)
