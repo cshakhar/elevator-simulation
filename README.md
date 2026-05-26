@@ -211,10 +211,37 @@ pytest tests/test_simulation.py::TestSimulation::test_single_passenger_zero_wait
 ### Visualise elevator paths (requires matplotlib)
 
 ```bash
-python main.py                        # produces output/elevator_positions.csv
-python visualize.py                   # interactive chart
-python visualize.py --save chart.png  # save to file
+# Basic interactive chart
+python main.py && python visualize.py
+
+# Save to file
+python visualize.py --save chart.png
+
+# Add queue-depth / fleet-utilisation panel (requires --metrics-output from main.py)
+python main.py --metrics-output output/metrics.csv
+python visualize.py --metrics output/metrics.csv
+
+# Add rush-hour phase bands (pass the same --pattern and --max-time used with generate_data.py)
+python visualize.py --pattern office --max-time 300
+
+# Full chart: direction coding, reversal markers, phase bands, metrics panel, algorithm name in title
+python visualize.py \
+  --input output/positions_nearest_car.csv \
+  --metrics output/metrics.csv \
+  --pattern office \
+  --max-time 300 \
+  --save chart.png
 ```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input` | `output/elevator_positions.csv` | Position log CSV produced by `main.py` |
+| `--save` | _(interactive)_ | Save to file instead of opening a window |
+| `--metrics` | _(omit to skip)_ | Per-tick metrics CSV — adds a queue-depth / fleet-utilisation panel |
+| `--pattern` | _(none)_ | `office` or `residential` — draws labelled phase bands on the chart |
+| `--max-time` | last tick in CSV | Max time used when generating data; needed for accurate phase-band boundaries |
+
+The chart encodes elevator direction in the line style (solid = up, dashed = down, dotted = idle) and marks direction-reversal points with dots. The algorithm name is extracted automatically from filenames like `positions_nearest_car.csv` and shown in the title.
 
 ---
 
@@ -438,7 +465,7 @@ elevator-simulation/
 ├── main.py                      # CLI entry point
 ├── compare_algorithms.py        # Algorithm comparison tool
 ├── generate_data.py             # Synthetic data generator
-└── visualize.py                 # Optional matplotlib chart
+└── visualize.py                 # Optional matplotlib chart — direction coding, phase bands, metrics panel
 ```
 
 ### Subpackage responsibilities
@@ -539,8 +566,6 @@ immediately used for boarding passengers.
   optimal assignment policies.
 - **Animation**: a real-time terminal or browser animation of elevator shafts.
 - **REST / WebSocket API**: accept requests over HTTP and stream position updates live.
-- **Benchmark suite**: systematic comparisons across building sizes, elevator counts,
-  and traffic patterns (morning rush, evening rush, random, uniform).
 
 ---
 
