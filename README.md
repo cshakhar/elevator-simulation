@@ -173,13 +173,28 @@ Max total time                             184           153           335
 ### Generate synthetic data
 
 ```bash
+# Uniform random (original behaviour)
 python generate_data.py --passengers 200 --floors 60 --max-time 300
+
+# Office building: morning rush (lobby → upper floors), midday inter-floor, evening rush (upper → lobby)
+python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern office
+
+# Residential building: morning departure surge (upper → lobby), evening return surge (lobby → upper)
+python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern residential
 ```
+
+| Pattern | Morning phase | Midday phase | Evening phase |
+|---|---|---|---|
+| `uniform` | fully random | fully random | fully random |
+| `office` | lobby → upper floors (40% of pax) | inter-floor, cafeteria-biased (25%) | upper floors → lobby (35%) |
+| `residential` | upper floors → lobby (35%) | light random (15%) | lobby → upper floors (50%) |
+
+The `office` and `residential` patterns produce visible directional waves in `visualize.py`, making algorithmic differences much easier to see.
 
 ### Run tests
 
 ```bash
-# Run all 110 tests
+# Run all 111 tests
 pytest tests/ -v
 
 # Run a specific file
@@ -413,7 +428,7 @@ elevator-simulation/
 │   ├── round_robin.py           # Baseline algorithm
 │   └── zone_based.py            # Zone-dispatch algorithm
 ├── testdata/                    # CSV request files
-├── tests/                       # pytest test suite (110 tests across 5 focused files)
+├── tests/                       # pytest test suite (111 tests across 5 focused files)
 │   ├── test_models.py           # Passenger, Elevator, Direction (32 tests)
 │   ├── test_simulation.py       # Simulation loop, express config, init errors (25 tests)
 │   ├── test_schedulers.py       # NearestCar, RoundRobin, ZoneBased, factory (21 tests)
