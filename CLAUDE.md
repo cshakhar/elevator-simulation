@@ -20,8 +20,10 @@ pytest tests/ -v
 # Run a single test
 pytest tests/test_models.py::TestElevator::test_move_up -v
 
-# Generate synthetic request data
+# Generate synthetic request data (uniform / office / residential pattern)
 python generate_data.py --passengers 200 --floors 60 --max-time 300
+python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern office
+python generate_data.py --passengers 200 --floors 60 --max-time 300 --pattern residential
 
 # Compare all three scheduling algorithms side-by-side
 python compare_algorithms.py --input testdata/large_requests.csv
