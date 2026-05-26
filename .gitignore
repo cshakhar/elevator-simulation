@@ -14,5 +14,5 @@ build/
 # Test cache
 .pytest_cache/
 
-# Generated output (keep placeholder)
-output/*.csv
+# Generated output
+output/
