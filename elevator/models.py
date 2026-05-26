@@ -128,6 +128,8 @@ class Elevator:
             below = [f for f in self.stops if f < self.current_floor]
             if below:
                 return max(below)
+            # Only remaining stop is the current floor (e.g. leftover pickups after
+            # capacity was exceeded); serve it rather than spinning indefinitely.
             if self.current_floor in self.stops:
                 return self.current_floor
 
@@ -138,6 +140,7 @@ class Elevator:
             above = [f for f in self.stops if f > self.current_floor]
             if above:
                 return min(above)
+            # Same edge case as UP branch above.
             if self.current_floor in self.stops:
                 return self.current_floor
 
@@ -170,10 +173,7 @@ class Elevator:
             self.current_floor -= 1
 
     def estimate_pickup_time(self, source: int) -> int:
-        """
-        Estimate steps to reach `source` for pickup, given current direction
-        and pending stops (used by scheduler to score assignment candidates).
-        """
+        """Estimate ticks to reach source floor, accounting for direction and turnaround."""
         if self.direction == Direction.IDLE:
             return abs(self.current_floor - source)
 
