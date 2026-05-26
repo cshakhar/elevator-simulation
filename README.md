@@ -179,7 +179,18 @@ python generate_data.py --passengers 200 --floors 60 --max-time 300
 ### Run tests
 
 ```bash
+# Run all 110 tests
 pytest tests/ -v
+
+# Run a specific file
+pytest tests/test_simulation.py -v
+pytest tests/test_models.py -v
+pytest tests/test_schedulers.py -v
+pytest tests/test_io.py -v
+pytest tests/test_observability.py -v
+
+# Run a single test
+pytest tests/test_simulation.py::TestSimulation::test_single_passenger_zero_wait -v
 ```
 
 ### Visualise elevator paths (requires matplotlib)
@@ -402,7 +413,12 @@ elevator-simulation/
 │   ├── round_robin.py           # Baseline algorithm
 │   └── zone_based.py            # Zone-dispatch algorithm
 ├── data/                        # CSV request files
-├── tests/                       # pytest test suite (110 tests)
+├── tests/                       # pytest test suite (110 tests across 5 focused files)
+│   ├── test_models.py           # Passenger, Elevator, Direction (32 tests)
+│   ├── test_simulation.py       # Simulation loop, express config, init errors (25 tests)
+│   ├── test_schedulers.py       # NearestCar, RoundRobin, ZoneBased, factory (21 tests)
+│   ├── test_io.py               # CSV loading — happy path, malformed, encoding (6 tests)
+│   └── test_observability.py    # Stats, metrics, log filter/formatter, event hooks (26 tests)
 ├── output/                      # Generated position logs, stats, and metrics
 ├── main.py                      # CLI entry point
 ├── compare_algorithms.py        # Algorithm comparison tool
