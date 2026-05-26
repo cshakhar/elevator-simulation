@@ -3,6 +3,8 @@ from typing import List
 from algorithms.base import BaseScheduler
 from elevator.models import Elevator, Passenger
 
+_STOP_PENALTY = 0.01  # tiebreak: prefer elevators with fewer pending stops
+
 
 class NearestCarScheduler(BaseScheduler):
     """
@@ -29,8 +31,7 @@ class NearestCarScheduler(BaseScheduler):
                 continue
 
             eta = elevator.estimate_pickup_time(passenger.source)
-            # Small penalty for busier elevators to break ties fairly
-            score = eta + len(elevator.stops) * 0.01
+            score = eta + len(elevator.stops) * _STOP_PENALTY
 
             if score < best_score:
                 best_score = score

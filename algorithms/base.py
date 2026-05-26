@@ -2,9 +2,10 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List
 
+from elevator.constants import SIMULATION_LOGGER_NAME
 from elevator.models import Elevator, Passenger
 
-logger = logging.getLogger("elevator.simulation")
+logger = logging.getLogger(SIMULATION_LOGGER_NAME)
 
 
 class BaseScheduler(ABC):

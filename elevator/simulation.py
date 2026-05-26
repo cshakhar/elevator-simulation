@@ -4,6 +4,15 @@ import os
 import uuid
 from typing import Dict, List, Optional
 
+from elevator.constants import (
+    CSV_COLUMNS,
+    DEFAULT_ALGORITHM,
+    DEFAULT_CAPACITY,
+    DEFAULT_NUM_ELEVATORS,
+    DEFAULT_NUM_FLOORS,
+    STOP_DROPOFF,
+    STOP_PICKUP,
+)
 from elevator.context import request_id_var
 from elevator.models import Direction, Elevator, Passenger
 from elevator.stats import compute_statistics, print_statistics, save_statistics
@@ -14,10 +23,10 @@ logger = logging.getLogger(__name__)
 class ElevatorSimulation:
     def __init__(
         self,
-        num_elevators: int = 3,
-        num_floors: int = 60,
-        capacity: int = 8,
-        algorithm: str = "nearest_car",
+        num_elevators: int = DEFAULT_NUM_ELEVATORS,
+        num_floors: int = DEFAULT_NUM_FLOORS,
+        capacity: int = DEFAULT_CAPACITY,
+        algorithm: str = DEFAULT_ALGORITHM,
         express_config: Optional[Dict[int, List[int]]] = None,
     ):
         if num_elevators < 1:
@@ -89,7 +98,7 @@ class ElevatorSimulation:
 
     def load_requests(self, filepath: str) -> List[Dict]:
         requests = []
-        required_columns = {"time", "id", "source", "dest"}
+        required_columns = set(CSV_COLUMNS)
         try:
             with open(filepath, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
@@ -256,11 +265,11 @@ class ElevatorSimulation:
         stop = elevator.stops[floor]
 
         # Drop off riders first to free capacity
-        for pid in list(stop["dropoff"]):
+        for pid in list(stop[STOP_DROPOFF]):
             if pid in elevator.passengers:
                 elevator.passengers.remove(pid)
                 self.passengers[pid].dropoff_time = self.current_time
-                stop["dropoff"].remove(pid)
+                stop[STOP_DROPOFF].remove(pid)
                 p = self.passengers[pid]
                 logger.debug(
                     "T=%d: %r alighted E%d at floor %d (wait=%d travel=%d)",
@@ -268,12 +277,12 @@ class ElevatorSimulation:
                 )
 
         # Pick up waiting passengers (FIFO, respect capacity)
-        for pid in list(stop["pickup"]):
+        for pid in list(stop[STOP_PICKUP]):
             if elevator.is_full:
                 break
             elevator.passengers.append(pid)
             self.passengers[pid].pickup_time = self.current_time
-            stop["pickup"].remove(pid)
+            stop[STOP_PICKUP].remove(pid)
             elevator.add_dropoff(self.passengers[pid].dest, pid)
             logger.debug(
                 "T=%d: %r boarded E%d at floor %d (dst=%d)",

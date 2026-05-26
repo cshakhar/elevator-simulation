@@ -12,19 +12,24 @@ import argparse
 import logging
 import sys
 
+from elevator.constants import (
+    ALGORITHMS,
+    DEFAULT_CAPACITY,
+    DEFAULT_INPUT_FILE,
+    DEFAULT_NUM_ELEVATORS,
+    DEFAULT_NUM_FLOORS,
+)
 from elevator.log_filter import RequestIdFilter
 from elevator.simulation import ElevatorSimulation
 
 logger = logging.getLogger(__name__)
 
-ALGORITHMS = ["nearest_car", "round_robin", "zone_based"]
-
 
 def run_all(
     input_file: str,
-    num_elevators: int = 3,
-    num_floors: int = 60,
-    capacity: int = 8,
+    num_elevators: int = DEFAULT_NUM_ELEVATORS,
+    num_floors: int = DEFAULT_NUM_FLOORS,
+    capacity: int = DEFAULT_CAPACITY,
 ) -> dict:
     results = {}
     for algo in ALGORITHMS:
@@ -93,10 +98,10 @@ def print_table(results: dict) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Compare elevator scheduling algorithms")
-    p.add_argument("--input", default="data/sample_requests.csv")
-    p.add_argument("--elevators", type=int, default=3)
-    p.add_argument("--floors", type=int, default=60)
-    p.add_argument("--capacity", type=int, default=8)
+    p.add_argument("--input", default=DEFAULT_INPUT_FILE)
+    p.add_argument("--elevators", type=int, default=DEFAULT_NUM_ELEVATORS)
+    p.add_argument("--floors", type=int, default=DEFAULT_NUM_FLOORS)
+    p.add_argument("--capacity", type=int, default=DEFAULT_CAPACITY)
     p.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],

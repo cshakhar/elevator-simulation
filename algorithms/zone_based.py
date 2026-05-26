@@ -4,9 +4,10 @@ from typing import List, Tuple
 
 from algorithms.base import BaseScheduler
 from algorithms.nearest_car import NearestCarScheduler
+from elevator.constants import SIMULATION_LOGGER_NAME
 from elevator.models import Elevator, Passenger
 
-logger = logging.getLogger("elevator.simulation")
+logger = logging.getLogger(SIMULATION_LOGGER_NAME)
 
 
 class ZoneBasedScheduler(BaseScheduler):
