@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 python main.py
 
 # Run with full options
-python main.py --input data/large_requests.csv --elevators 4 --floors 80 \
+python main.py --input testdata/large_requests.csv --elevators 4 --floors 80 \
                --capacity 10 --algorithm zone_based --express --log-level DEBUG \
                --log-format json --stats-output output/passenger_stats.log \
                --metrics-output output/metrics.csv
@@ -24,7 +24,7 @@ pytest tests/test_simulation.py::TestElevator::test_move_up -v
 python generate_data.py --passengers 200 --floors 60 --max-time 300
 
 # Compare all three scheduling algorithms side-by-side
-python compare_algorithms.py --input data/large_requests.csv
+python compare_algorithms.py --input testdata/large_requests.csv
 
 # Visualize elevator positions over time (requires matplotlib)
 python visualize.py --input output/elevator_positions.csv

@@ -98,7 +98,7 @@ python main.py
 **Bash / macOS / Linux:**
 ```bash
 python main.py \
-  --input data/large_requests.csv \
+  --input testdata/large_requests.csv \
   --elevators 4 \
   --floors 60 \
   --capacity 10 \
@@ -112,7 +112,7 @@ python main.py \
 **PowerShell / Windows:**
 ```powershell
 python main.py `
-  --input data/large_requests.csv `
+  --input testdata/large_requests.csv `
   --elevators 4 `
   --floors 60 `
   --capacity 10 `
@@ -125,7 +125,7 @@ python main.py `
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--input` | `data/sample_requests.csv` | CSV request file |
+| `--input` | `testdata/sample_requests.csv` | CSV request file |
 | `--output` | `output/elevator_positions.csv` | Position log output |
 | `--stats-output` | `output/passenger_stats.log` | Passenger statistics log output |
 | `--metrics-output` | _(omit to skip)_ | Per-tick metrics CSV (assignments, pickups, dropoffs, queue depth, utilisation) |
@@ -144,14 +144,14 @@ When `--express` is set, the last elevator is restricted to floors 1 and 11+ (it
 ### Compare all three algorithms
 
 ```bash
-python compare_algorithms.py --input data/large_requests.csv
-python compare_algorithms.py --input data/large_requests.csv --log-level DEBUG --log-format json
+python compare_algorithms.py --input testdata/large_requests.csv
+python compare_algorithms.py --input testdata/large_requests.csv --log-level DEBUG --log-format json
 ```
 
 Runs all three algorithms on the same input and prints a side-by-side performance table. Accepts the same `--log-level` and `--log-format` flags as `main.py`; each algorithm run is isolated so a failure in one does not abort the others. Example output:
 
 ```
-Input: data/large_requests.csv  |  Elevators: 3  |  Floors: 60  |  Capacity: 8
+Input: testdata/large_requests.csv  |  Elevators: 3  |  Floors: 60  |  Capacity: 8
 
 ==========================================================================
   ALGORITHM COMPARISON
@@ -412,7 +412,7 @@ elevator-simulation/
 │   ├── nearest_car.py           # Primary algorithm
 │   ├── round_robin.py           # Baseline algorithm
 │   └── zone_based.py            # Zone-dispatch algorithm
-├── data/                        # CSV request files
+├── testdata/                    # CSV request files
 ├── tests/                       # pytest test suite (110 tests across 5 focused files)
 │   ├── test_models.py           # Passenger, Elevator, Direction (32 tests)
 │   ├── test_simulation.py       # Simulation loop, express config, init errors (25 tests)

@@ -6,8 +6,8 @@ Examples
 --------
   python main.py
   python main.py --elevators 4 --floors 20 --capacity 10
-  python main.py --input data/large_requests.csv --algorithm zone_based
-  python main.py --input data/large_requests.csv --express --verbose
+  python main.py --input testdata/large_requests.csv --algorithm zone_based
+  python main.py --input testdata/large_requests.csv --express --verbose
   python main.py --log-format json --log-level DEBUG
   python main.py --metrics-output output/metrics.csv
 """

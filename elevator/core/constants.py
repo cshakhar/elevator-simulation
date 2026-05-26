@@ -4,11 +4,11 @@ DEFAULT_CAPACITY = 8
 DEFAULT_ALGORITHM = "nearest_car"
 ALGORITHMS = ["nearest_car", "round_robin", "zone_based"]
 
-DEFAULT_INPUT_FILE = "data/sample_requests.csv"
+DEFAULT_INPUT_FILE = "testdata/sample_requests.csv"
 DEFAULT_OUTPUT_POSITIONS = "output/elevator_positions.csv"
 DEFAULT_OUTPUT_STATS = "output/passenger_stats.log"
 DEFAULT_OUTPUT_METRICS = "output/metrics.csv"
-DEFAULT_GENERATED_FILE = "data/generated_requests.csv"
+DEFAULT_GENERATED_FILE = "testdata/generated_requests.csv"
 
 CSV_COLUMNS = ["time", "id", "source", "dest"]
 

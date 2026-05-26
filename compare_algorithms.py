@@ -6,7 +6,7 @@ and print a side-by-side summary table.
 Usage
 -----
   python compare_algorithms.py
-  python compare_algorithms.py --input data/large_requests.csv --elevators 4
+  python compare_algorithms.py --input testdata/large_requests.csv --elevators 4
 """
 import argparse
 import logging
