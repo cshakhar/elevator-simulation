@@ -160,15 +160,19 @@ Metric                             nearest_car   round_robin    zone_based
 --------------------------------------------------------------------------
 Served passengers                           52            52            52
 Avg wait time                            32.52         43.31         64.44
+P99 wait time                           139.45        109.96        246.08
 Max wait time                              142           112           293
 Avg travel time                          40.13         50.44         39.06
 Avg total time                           72.65         93.75        103.50
+P99 total time                          176.35        151.47        295.22
 Max total time                             184           153           335
 --------------------------------------------------------------------------
 
   Best avg total time: nearest_car
 ==========================================================================
 ```
+
+P99 rows are especially useful for spotting tail-latency differences between algorithms that are hidden by averages — in the example above, `zone_based` is only 43% slower on average total time but 67% slower at the 99th percentile.
 
 ### Generate synthetic data
 
@@ -291,12 +295,13 @@ time,elevator_0,elevator_1,elevator_2
 
   Wait Time   (pickup - request):
     Min     :      0 ticks
-    Max     :     79 ticks
-    Average :     22.70 ticks
-    Median  :      9.00 ticks
-    P90     :     69.10 ticks
-    P95     :     74.05 ticks
-    Std Dev :     27.88 ticks
+    Max     :    142 ticks
+    Average :     32.52 ticks
+    Median  :     14.50 ticks
+    P90     :    121.80 ticks
+    P95     :    134.25 ticks
+    P99     :    139.45 ticks
+    Std Dev :     41.65 ticks
   ...
 
   Wait Time Distribution:
@@ -563,6 +568,8 @@ immediately used for boarding passengers.
 - **Better capacity-aware ETA**: the current estimate ignores the capacity consumed by
   passengers who will board between now and the pickup floor; a future version would
   model this properly.
+- **Door open/close time**: model door cycles as real tick cost so p99 wait times reflect
+  the per-stop overhead that real elevators incur (currently zero extra ticks per stop).
 - **Machine-learning scheduler**: train a model on historical traffic data to predict
   optimal assignment policies.
 - **Animation**: a real-time terminal or browser animation of elevator shafts.

@@ -152,7 +152,7 @@ sim = ElevatorSimulation(express_config=express_config)
 ```python
 {
   "total": int, "served": int, "unserved": int, "service_rate": float|None,
-  "wait_time":  {"min", "max", "avg", "median", "p90", "p95", "stddev", "count"},
+  "wait_time":  {"min", "max", "avg", "median", "p90", "p95", "p99", "stddev", "count"},
   "travel_time": { … },   # same shape
   "total_time":  { … },   # same shape
   "zero_wait_count": int, "long_wait_count": int, "long_wait_threshold": int,

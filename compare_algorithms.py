@@ -68,9 +68,11 @@ def print_table(results: dict) -> None:
     metrics = [
         ("Served passengers",  lambda s: s["served"]),
         ("Avg wait time",      lambda s: f"{s['wait_time']['avg']:.2f}" if s['wait_time']['avg'] is not None else "-"),
+        ("P99 wait time",      lambda s: f"{s['wait_time']['p99']:.2f}" if s['wait_time']['p99'] is not None else "-"),
         ("Max wait time",      lambda s: s["wait_time"]["max"] or "-"),
         ("Avg travel time",    lambda s: f"{s['travel_time']['avg']:.2f}" if s['travel_time']['avg'] is not None else "-"),
         ("Avg total time",     lambda s: f"{s['total_time']['avg']:.2f}" if s['total_time']['avg'] is not None else "-"),
+        ("P99 total time",     lambda s: f"{s['total_time']['p99']:.2f}" if s['total_time']['p99'] is not None else "-"),
         ("Max total time",     lambda s: s["total_time"]["max"] or "-"),
     ]
 

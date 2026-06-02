@@ -21,7 +21,7 @@ def _summarize(values: List[int]) -> Dict:
     if not values:
         return {
             "min": None, "max": None, "avg": None, "median": None,
-            "p90": None, "p95": None, "stddev": None, "count": 0,
+            "p90": None, "p95": None, "p99": None, "stddev": None, "count": 0,
         }
     sorted_vals = sorted(values)
     n = len(sorted_vals)
@@ -36,6 +36,7 @@ def _summarize(values: List[int]) -> Dict:
         "median": _percentile(sorted_vals, 50),
         "p90": _percentile(sorted_vals, 90),
         "p95": _percentile(sorted_vals, 95),
+        "p99": _percentile(sorted_vals, 99),
         "stddev": stddev,
         "count": n,
     }
@@ -111,6 +112,7 @@ def _format_time_block(label: str, s: Dict) -> List[str]:
         f"    Median  : {s['median']:>9.2f} ticks",
         f"    P90     : {s['p90']:>9.2f} ticks",
         f"    P95     : {s['p95']:>9.2f} ticks",
+        f"    P99     : {s['p99']:>9.2f} ticks",
         f"    Std Dev : {s['stddev']:>9.2f} ticks",
     ]
     return lines
